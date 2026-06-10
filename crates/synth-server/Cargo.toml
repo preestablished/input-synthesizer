@@ -1,0 +1,8 @@
+[package]
+name = "synth-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+synth-core = { path = "../synth-core" }
