@@ -26,14 +26,22 @@ const UP: u32 = 1 << 6;
 const DOWN: u32 = 1 << 7;
 const LEFT: u32 = 1 << 8;
 const RIGHT: u32 = 1 << 9;
+const START: u32 = 1 << 10;
+const SELECT: u32 = 1 << 11;
 
 fn main() {
     let mut args = std::env::args().skip(1);
     let endpoint = args
         .next()
         .unwrap_or_else(|| "http://127.0.0.1:7430".to_owned());
-    let calls: u64 = args.next().map(|s| s.parse().unwrap()).unwrap_or(1000);
-    let k: u32 = args.next().map(|s| s.parse().unwrap()).unwrap_or(32);
+    let calls: u64 = args
+        .next()
+        .map(|s| s.parse().expect("calls must be an integer"))
+        .unwrap_or(1000);
+    let k: u32 = args
+        .next()
+        .map(|s| s.parse().expect("k must be an integer"))
+        .unwrap_or(32);
 
     let pack_bytes =
         std::fs::read(format!("{REPO}/packs/console16-movement-core.yaml")).expect("read pack");
@@ -130,8 +138,13 @@ macro:
         };
 
         let start = Instant::now();
-        match propose_bursts_with_fingerprint_guard(&mut client, &bringup, &mut registry, request, 0)
-        {
+        match propose_bursts_with_fingerprint_guard(
+            &mut client,
+            &bringup,
+            &mut registry,
+            request,
+            0,
+        ) {
             Ok(response) => {
                 latencies_us.push(start.elapsed().as_micros());
                 fingerprint_hex = response
@@ -147,7 +160,10 @@ macro:
                     }
                     if !burst_is_legal(&pb.burst) {
                         illegal_bursts += 1;
-                        eprintln!("ILLEGAL burst at batch {batch_seq} slot {}", pb.provenance.slot);
+                        eprintln!(
+                            "ILLEGAL burst at batch {batch_seq} slot {}",
+                            pb.provenance.slot
+                        );
                     }
                 }
             }
@@ -206,6 +222,11 @@ fn burst_is_legal(burst: &Burst) -> bool {
             return false;
         }
         if mask & LEFT != 0 && mask & RIGHT != 0 {
+            return false;
+        }
+        // forbidden_masks invariant (API.md §1): the embedded config declares
+        // {mask: [START, SELECT], clear: [SELECT]}, so the pair never co-holds.
+        if mask & START != 0 && mask & SELECT != 0 {
             return false;
         }
         if prev_mask == Some(mask) {

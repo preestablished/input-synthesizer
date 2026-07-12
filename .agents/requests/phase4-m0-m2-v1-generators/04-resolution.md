@@ -126,12 +126,16 @@ mutant after the single forced retry; the retry uses its own stream label
   to determinism-hypervisor for their burst→input-log contract test; any
   case's `(request, burst_id)` pairs regenerate deterministically from the
   committed configs.
-- **Pack-reference seam**: the orchestrator's bring-up validates
-  `macro.packs` entries against `Health.loaded_packs`, which carries
-  content-hash **ids** — configs consumed by the orchestrator must reference
-  packs by id (API.md §5.6 allows names too; our resolver accepts both).
-  Raised here rather than absorbed (per the choreography note about doc
-  drift working both ways).
+- **Pack-reference seam — resolved producer-side in round 4**: the
+  orchestrator's bring-up validates `macro.packs` entries against
+  `Health.loaded_packs` by verbatim membership. `loaded_packs` originally
+  carried content-hash ids only, which would have failed bring-up for every
+  name-based config (the documented default style). `Health.loaded_packs`
+  now reports every identifier a loaded pack answers to — pack_ids AND
+  declared names (API.md §2.5 updated with a dated note); the fingerprint
+  still uses pack_ids only. Name- and id-based configs both bring up
+  cleanly with the orchestrator's existing check, no change needed on
+  their side.
 
 ## Post-implementation code-review round (`c9851c3`)
 
@@ -192,6 +196,26 @@ such collisions by load order (proven by PoC). `PackRegistry::get` is now
 id-first (ids unique by construction, names unique by replacement), making
 lookup a pure function of the loaded set; regression test
 `pack_id_lookup_beats_name_collision_regardless_of_load_order`.
+
+## Review round 4 (this SHA)
+
+Two further reviews: a consumer-contract audit reading the orchestrator's
+client layer (orch-clients DTOs, orch-driver validators, grpc conversions)
+end-to-end against our wire behavior, and an adversarial verification of
+round 3 plus the first code review of the vendored smoke harness. The
+contract audit verified 14 consumer checks compatible (burst_id/fingerprint
+lengths and equality, k-length responses incl. the fallback path, slot
+ordering, seed echo, fallback_from=UNSPECIFIED mapping, provenance payload
+shapes, mutation id round-trips, experiment-id matching, their YAML pack
+parser vs our configs, deadlines) and found one real blocker — the
+`Health.loaded_packs` name/id mismatch fixed above. The round-3 fix
+verified fully clean (id-first lookup total, request path protected via
+resolve(), no other order-dependent scans). Harness review: added the
+missing forbidden-mask (START|SELECT) invariant to the smoke's client-side
+legality check and clearer arg-parse errors. Known non-issues recorded:
+Health.status is constant SERVING in v1 (no policy tier to degrade on);
+their tonic error mapper files Unimplemented under Internal (their side,
+cosmetic).
 
 ## Verification pointers
 

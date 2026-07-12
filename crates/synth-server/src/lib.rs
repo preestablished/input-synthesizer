@@ -541,7 +541,10 @@ impl InputSynthesizer for SynthService {
         Ok(Response::new(HealthResponse {
             status: v1::health_response::Status::Serving as i32,
             synth_version: SYNTH_VERSION.to_owned(),
-            loaded_packs: state.pack_registry.pack_ids(),
+            // ids AND declared names: the orchestrator's SynthBringup checks
+            // config macro.packs entries (names or ids) for verbatim
+            // membership here; ids alone would fail every name-based config.
+            loaded_packs: state.pack_registry.loaded_pack_identifiers(),
             loaded_experiments: state.experiments.keys().cloned().collect(),
             policy_endpoint_up: false,
             policy_deterministic: false,

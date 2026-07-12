@@ -903,6 +903,17 @@ async fn health_loaded_packs_contains_loaded_pack_id() {
         .expect("health after pack load")
         .into_inner();
     assert!(health.loaded_packs.contains(&pack_resp.document_id));
+    // The declared pack NAME must appear too: the orchestrator's bring-up
+    // (SynthBringup::run) requires the experiment config's macro.packs
+    // entries — names or ids — verbatim in this list, and name-based
+    // configs are the documented default style (API.md §5.6).
+    assert!(
+        health
+            .loaded_packs
+            .contains(&"console16-movement-core".to_owned()),
+        "Health.loaded_packs must cover declared pack names, not only ids: {:?}",
+        health.loaded_packs
+    );
 
     server.shutdown().await;
 }

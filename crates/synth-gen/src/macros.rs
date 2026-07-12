@@ -617,6 +617,24 @@ impl PackRegistry {
         ids.sort_unstable();
         ids
     }
+
+    /// Every identifier by which a loaded pack may be referenced: content-hash
+    /// pack_ids AND declared names, sorted and deduped. This is what
+    /// `Health.loaded_packs` reports — the orchestrator's bring-up
+    /// (`SynthBringup::run`) checks the experiment config's `macro.packs`
+    /// entries (names or ids, API.md §5.6) for verbatim membership in that
+    /// list, so names must appear or every name-based config fails bring-up.
+    /// The fingerprint still uses [`Self::pack_ids`] only.
+    pub fn loaded_pack_identifiers(&self) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .packs
+            .iter()
+            .flat_map(|p| [p.pack_id.clone(), p.name.clone()])
+            .collect();
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
 }
 
 #[derive(Debug, thiserror::Error, PartialEq)]
