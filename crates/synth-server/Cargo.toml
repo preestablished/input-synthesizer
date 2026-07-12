@@ -4,5 +4,29 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "synth-server"
+path = "src/main.rs"
+
 [dependencies]
-synth-core = { path = "../synth-core" }
+synth-core = { workspace = true }
+synth-gen = { workspace = true }
+synth-pad = { workspace = true }
+synth-proto = { workspace = true }
+
+indexmap = { workspace = true }
+blake3 = { workspace = true }
+
+tokio = { workspace = true }
+tonic = { workspace = true }
+tonic-prost = { workspace = true }
+prometheus = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true }
+http-body-util = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+tokio-stream = "0.1"
