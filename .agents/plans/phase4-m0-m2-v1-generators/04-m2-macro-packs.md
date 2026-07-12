@@ -30,7 +30,8 @@ Eligibility (predicate language of §4.4; no-predicate ⇒ always eligible;
 predicate + no context ⇒ ineligible) → pick by weight (stream
 `slot/{s}/macro/pick`) → bind params (stream `…/params`; uniform over domain)
 → instantiate `steps` (mirror substitution, `$param` frames, `scale` multiply
-with round-half-to-even, clamp ≥1) or `token_steps` via `detokenize` → tail
+with round-half-to-even — use `f64::round_ties_even()`, NOT `round()` which is
+half-away-from-zero — clamp ≥1) or `token_steps` via `detokenize` → tail
 padding with weighted-random (stream `…/tail`) when shorter than target L and
 `pad_to_length` → `chain_n` concatenation (chain_index in provenance) →
 legalize → `MacroProvenance { pack_id, macro_name, param_bindings,
@@ -65,7 +66,10 @@ a rich eligible set.
   fails atomically with line/column; identical reload no-op w/ same pack_id.
 - Instantiation goldens (both arches): fixed seed ⇒ fixed bindings ⇒ fixed
   segments for `steps`, `token_steps`, mirror, scale cases —
-  `testdata/golden/m2/*.json`.
+  `testdata/golden/m2/*.json`. Compare canonical forms: `param_bindings` as
+  sorted `Vec<(K,V)>`, segments via domain types — never raw wire bytes of
+  `MacroProvenance` (its proto `map<>` field encodes in HashMap order; see
+  `00-` global rule).
 - Eligibility tests: predicate macro skipped without matching context AND
   without any context; predicate-free always eligible.
 - Provenance: `macro_frames + tail_frames == total frames`; `param_bindings`

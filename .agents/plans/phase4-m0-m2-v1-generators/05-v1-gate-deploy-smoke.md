@@ -7,16 +7,23 @@ validation count = 0).
 
 ## 1. Container image
 
-- `Dockerfile`: multi-stage (rust builder → distroless/debian-slim runtime),
-  builds `synth-server` binary; build context must include the control-plane
-  checkout (build arg or a pre-vendored proto crate — simplest: build from a
-  parent context containing both repos, or `COPY` a control-plane checkout
-  made by the build script). Provide `scripts/build-image.sh` that clones/uses
-  `../control-plane` at `proto-v0.2.0` and runs
-  `docker build` (and `docker buildx build --platform linux/amd64,linux/arm64`
-  when buildx is available; single-arch local build is acceptable evidence for
-  "buildable for either host" if CI or buildx covers the other — record what
-  was actually built and its digest).
+- `Dockerfile`: multi-stage (rust builder → debian-slim runtime), builds the
+  `synth-server` binary. The workspace path-depends on
+  `../control-plane/crates/determinism-proto`, which a build context rooted at
+  this repo cannot see. **Decision — staged two-repo context, no Cargo.toml
+  patching**: `scripts/build-image.sh` assembles a scratch context
+  `$TMP/ctx/` containing `input-synthesizer/` (a `git archive` of HEAD) and
+  `control-plane/` (a `git archive` of tag `proto-v0.2.0` from
+  `../control-plane`), then runs
+  `docker build -f input-synthesizer/Dockerfile $TMP/ctx`. Inside the builder
+  stage: `COPY input-synthesizer /build/input-synthesizer`,
+  `COPY control-plane /build/control-plane`,
+  `WORKDIR /build/input-synthesizer`, `cargo build --release -p synth-server`
+  — the relative path dep resolves unchanged. Use
+  `docker buildx build --platform linux/amd64,linux/arm64` when buildx is
+  available; a single-arch local build is acceptable evidence for "buildable
+  for either host" if CI or buildx covers the other — record what was actually
+  built and its digest.
 - Image runs with `--load` of a config/pack set or empty (documents pushed via
   `LoadMacroPack` by the orchestrator per INTEGRATION §3 (B)).
 - Record: image digest(s), the exact build command, the git SHA baked in

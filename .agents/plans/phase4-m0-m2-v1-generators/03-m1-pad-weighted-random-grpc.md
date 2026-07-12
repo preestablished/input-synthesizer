@@ -56,10 +56,10 @@ Server shell per §8: tonic on `:7430`; HTTP `:7431` `/healthz` + Prometheus
 `Health` RPC per API §2.5. Errors per API §2.1 (`INVALID_ARGUMENT` naming the
 exact field; `FAILED_PRECONDITION` for unloaded referenced packs; never fail on
 missing optional context). Experiment configs load via `LoadMacroPack`
-(`kind=EXPERIMENT_CONFIG`) — implement that arm of the RPC in M1 (macro-pack
-arm lands in M2, grammar arm returns `INVALID_ARGUMENT "unsupported in v1"`...
-no: return `UNIMPLEMENTED`-style `INVALID_ARGUMENT` with a clear message;
-choose one and test it). `main.rs` binary with flags
+(`kind=EXPERIMENT_CONFIG`) — implement that arm in M1; the macro-pack arm
+lands in M2; the `EVENT_GRAMMAR` arm returns `INVALID_ARGUMENT` with message
+`"event_grammar documents are not supported until M5"` (tested).
+`main.rs` binary with flags
 `--grpc-addr`, `--http-addr`, optional `--load <path>[:kind]` repeatable for
 standalone bring-up.
 
@@ -73,8 +73,12 @@ re-load same doc, propose again ⇒ identical bytes.
    lengths, with/without context, with/without history, override merges.
    Generate once on x86_64 via a `cargo run -p synth-server --bin
    record-goldens` helper (or a test with `--ignored` record mode); replay
-   test asserts byte-identical bursts (full burst bytes, not just ids — hash
-   the full response). CI runs it on both arches.
+   test asserts byte-identical bursts — hash the CANONICAL form, not raw prost
+   wire bytes: postcard over internal domain types per burst, plus the
+   response's scalar fields and each Provenance normalized with map fields as
+   sorted `Vec<(K,V)>` (see `00-` global rule: proto `map<>` fields encode in
+   HashMap order and are nondeterministic per process). CI runs it on both
+   arches.
 2. **Statistical suite** (fixed seed, N=2000 bursts, `statrs` dev-dep), one
    test per owner bullet: per-button duty χ² (±10% rel, sized per plan
    testing-strategy note 2); hold-duration vs Geometric(1/μ) KS/χ² + mean
@@ -84,10 +88,12 @@ re-load same doc, propose again ⇒ identical bytes.
    length median ±10% of hint. Fixed seeds chosen once; if a tolerance
    marginally fails, resize N — never loosen beyond the owner numbers.
 3. Context-free: same suite passes with `NodeContext{node_id}` only.
-4. Bench: `ProposeBursts(K=32, L=300)` p99 < 5 ms — criterion bench or a
-   simple 1000-iteration timing test that asserts the budget; run on both CI
-   arches (hosted runners are noisy: use p99 over 1000 in-process calls, no
-   network).
+4. Bench: `ProposeBursts(K=32, L=300)` p99 < 5 ms — a 1000-iteration
+   in-process timing test (no network). Run and assert locally; in CI run it
+   as a separate NON-GATING job (`continue-on-error: true`) that logs the
+   measured p99 on both arches — hosted shared runners have CPU steal that
+   would make a 5 ms hard gate flake. Record the CI-logged numbers as
+   evidence; the hard budget holds on real hosts.
 5. Mixer test: K ∈ {8,32,64}, default mix ⇒ per-generator counts = stratified
    floors ± 1.
 6. In-process tonic integration test: real client↔server over a local socket
