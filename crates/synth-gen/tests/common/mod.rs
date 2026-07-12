@@ -194,6 +194,7 @@ pub fn ctx_full(node_id: &str) -> GenContext {
                 },
             ],
         }),
+        ..Default::default()
     }
 }
 
@@ -227,6 +228,177 @@ macro:
     let merged = deep_merge(&base, overrides.as_bytes()).expect("deep_merge macro overrides");
     validate(&merged).expect("merged macro config must be valid");
     merged
+}
+
+// ---------------------------------------------------------------------
+// M3: mutation
+// ---------------------------------------------------------------------
+
+/// `base_yaml` with the generator mix set to pure mutation (`{mutation: 1.0}`),
+/// for the mutation_suite/golden_mutation test binaries.
+pub fn mutation_cfg() -> ExperimentConfig {
+    let base = parse_and_validate(&base_yaml(0.25));
+    let overrides = br#"
+generator_mix:
+  weighted_random: 0.0
+  macro: 0.0
+  mutation: 1.0
+  policy: 0.0
+"#;
+    let merged = deep_merge(&base, overrides).expect("deep_merge mutation overrides");
+    validate(&merged).expect("merged mutation config must be valid");
+    merged
+}
+
+/// `mutation_cfg` with `mutation.op_probs` overridden to put probability 1.0
+/// on a single named op (validation requires the map to sum to 1) — forces
+/// every sampled mutant to apply exactly that op, for per-operator unit
+/// goldens (`06-m3-mutation-stretch.md` Accept list).
+pub fn mutation_cfg_forced_op(op: &str) -> ExperimentConfig {
+    let base = mutation_cfg();
+    // `deep_merge` merges maps key-by-key (it never drops keys absent from
+    // the override), so every other op must be zeroed explicitly — an
+    // override naming only `op` would leave the base document's other six
+    // probabilities in place and fail the "sums to 1" validation rule.
+    const ALL_OPS: &[&str] = &[
+        "perturb_timing",
+        "extend",
+        "flip_button",
+        "splice",
+        "truncate",
+        "duplicate_segment",
+        "swap_adjacent",
+    ];
+    let entries: String = ALL_OPS
+        .iter()
+        .map(|name| format!("    {name}: {}\n", if *name == op { 1.0 } else { 0.0 }))
+        .collect();
+    let overrides = format!(
+        "mutation:\n  op_probs:\n{entries}  donor_bias: 0.5\n  timing_sigma: 0.25\n  \
+         ops_binomial: {{ n: 3, p: 0.25 }}\n"
+    );
+    let merged = deep_merge(&base, overrides.as_bytes()).expect("deep_merge op_probs override");
+    validate(&merged).expect("merged forced-op config must be valid");
+    merged
+}
+
+/// A 6-segment hand-built pad burst, deliberately varied (neutral, single
+/// button, direction, direction+button, neutral, button) so every operator
+/// has something to act on.
+pub fn mutation_base_pad() -> PadBurst {
+    PadBurst {
+        segments: vec![
+            PadSegment {
+                buttons: 0,
+                hold_frames: 10,
+            },
+            PadSegment {
+                buttons: 1 << 0, // A
+                hold_frames: 8,
+            },
+            PadSegment {
+                buttons: 1 << 9, // RIGHT
+                hold_frames: 20,
+            },
+            PadSegment {
+                buttons: (1 << 9) | (1 << 1), // RIGHT + B
+                hold_frames: 5,
+            },
+            PadSegment {
+                buttons: 0,
+                hold_frames: 12,
+            },
+            PadSegment {
+                buttons: 1 << 3, // Y
+                hold_frames: 6,
+            },
+        ],
+    }
+}
+
+/// A second hand-built pad burst, distinct in content (and therefore
+/// `burst_id`) from `mutation_base_pad`, for tests that need a
+/// donor/sibling that isn't identical to the base.
+pub fn mutation_sibling_pad_a() -> PadBurst {
+    PadBurst {
+        segments: vec![
+            PadSegment {
+                buttons: 1 << 6, // UP
+                hold_frames: 15,
+            },
+            PadSegment {
+                buttons: 1 << 4, // L
+                hold_frames: 9,
+            },
+            PadSegment {
+                buttons: 0,
+                hold_frames: 30,
+            },
+        ],
+    }
+}
+
+/// A third distinct hand-built pad burst.
+pub fn mutation_sibling_pad_b() -> PadBurst {
+    PadBurst {
+        segments: vec![
+            PadSegment {
+                buttons: (1 << 7) | (1 << 5), // DOWN + R
+                hold_frames: 4,
+            },
+            PadSegment {
+                buttons: 1 << 2, // X
+                hold_frames: 40,
+            },
+        ],
+    }
+}
+
+/// Wrap a `PadBurst` into a `ContextBurst` with its content-addressed id.
+pub fn context_burst_from(pad: PadBurst) -> synth_gen::context::ContextBurst {
+    let id = synth_core::types::burst_hash(&synth_core::types::Burst::Pad(pad.clone()));
+    synth_gen::context::ContextBurst { pad, burst_id: id }
+}
+
+pub fn ctx_with_parent(node_id: &str, parent: PadBurst) -> GenContext {
+    GenContext {
+        node_id: node_id.to_owned(),
+        parent_burst: Some(context_burst_from(parent)),
+        ..Default::default()
+    }
+}
+
+pub fn ctx_with_siblings_only(node_id: &str, siblings: Vec<(PadBurst, f64)>) -> GenContext {
+    GenContext {
+        node_id: node_id.to_owned(),
+        sibling_bursts: siblings
+            .into_iter()
+            .map(|(p, sd)| synth_gen::context::ScoredContextBurst {
+                burst: context_burst_from(p),
+                score_delta: sd,
+            })
+            .collect(),
+        ..Default::default()
+    }
+}
+
+pub fn ctx_with_parent_and_siblings(
+    node_id: &str,
+    parent: PadBurst,
+    siblings: Vec<(PadBurst, f64)>,
+) -> GenContext {
+    GenContext {
+        node_id: node_id.to_owned(),
+        parent_burst: Some(context_burst_from(parent)),
+        sibling_bursts: siblings
+            .into_iter()
+            .map(|(p, sd)| synth_gen::context::ScoredContextBurst {
+                burst: context_burst_from(p),
+                score_delta: sd,
+            })
+            .collect(),
+        ..Default::default()
+    }
 }
 
 pub fn hex(bytes: &[u8]) -> String {

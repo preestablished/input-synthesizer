@@ -9,6 +9,25 @@ use synth_core::config::{CmpOp, ExperimentConfig, Predicate};
 use synth_core::fmath;
 use synth_core::types::PadBurst;
 
+/// A previously-generated pad burst usable as a mutation base or donor
+/// (ARCHITECTURE.md §5.2): the parent that spawned this node, or one of its
+/// siblings. Carries the content-addressed `burst_id` alongside the pad body
+/// so `MutationProvenance` can reference it without recomputing the hash
+/// (the id is also what the orchestrator stored the burst under).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContextBurst {
+    pub pad: PadBurst,
+    pub burst_id: [u8; 32],
+}
+
+/// A sibling burst plus the score delta it earned (ARCHITECTURE.md §5.2
+/// donor selection: sampled `∝ max(score_delta, ε)`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScoredContextBurst {
+    pub burst: ContextBurst,
+    pub score_delta: f64,
+}
+
 /// Domain form of the request's `NodeContext`. Built at the proto boundary;
 /// `ram_features` is normalized to a name-sorted `Vec` there (the proto field
 /// is an unordered map and must not reach decision paths as one).
@@ -19,6 +38,13 @@ pub struct GenContext {
     pub ram_features: Vec<(String, f64)>,
     /// Tail of the input history that led to this node (same model).
     pub recent_inputs: Option<PadBurst>,
+    /// The burst that created this node (mutation base, ARCHITECTURE.md
+    /// §5.2). `None` when this node has no known parent burst (e.g. root).
+    pub parent_burst: Option<ContextBurst>,
+    /// Bursts from the same parent whose children scored well, each with its
+    /// `score_delta`. Empty when none are known. Mutation is unavailable iff
+    /// both `parent_burst` and `sibling_bursts` are absent/empty.
+    pub sibling_bursts: Vec<ScoredContextBurst>,
 }
 
 impl GenContext {

@@ -21,9 +21,9 @@ use tonic::{Request, Response, Status};
 
 use synth_core::config::ExperimentConfig;
 use synth_core::SYNTH_VERSION;
-use synth_gen::context::GenContext;
+use synth_gen::context::{ContextBurst, GenContext, ScoredContextBurst};
 use synth_gen::macros::{self, MacroPackError, PackRegistry};
-use synth_gen::propose::{propose, Availability};
+use synth_gen::propose::propose;
 use synth_gen::provenance::GeneratorKind as DomainGeneratorKind;
 use synth_proto::v1::input_synthesizer_server::InputSynthesizer;
 use synth_proto::v1::{
@@ -129,6 +129,34 @@ fn invalid_argument(msg: impl Into<String>) -> Status {
     Status::invalid_argument(msg.into())
 }
 
+/// Decode a `ProvenancedBurst` (API.md §2.4 `NodeContext.parent_burst` /
+/// `sibling_bursts[].burst`) into the domain `ContextBurst` mutation needs
+/// (synth_gen::mutation, ARCHITECTURE.md §5.2): the pad body via the shared
+/// `synth_core::types::from_proto` boundary conversion, plus the burst's own
+/// `burst_id` — validated to be exactly 32 bytes, since it becomes
+/// `MutationProvenance.base_burst_id`/`donor_burst_id` verbatim.
+fn decode_context_burst(pb: &v1::ProvenancedBurst, field: &str) -> Result<ContextBurst, Status> {
+    let burst_proto = pb
+        .burst
+        .as_ref()
+        .ok_or_else(|| invalid_argument(format!("{field}.burst is required")))?;
+    let (burst, _alphabet) = synth_core::types::from_proto(burst_proto)
+        .map_err(|e| invalid_argument(format!("{field}: {e}")))?;
+    let synth_core::types::Burst::Pad(pad) = burst else {
+        #[allow(unreachable_patterns)]
+        {
+            unreachable!("from_proto only ever returns Burst::Pad in M1..M3")
+        }
+    };
+    let burst_id: [u8; 32] = burst_proto.burst_id.as_slice().try_into().map_err(|_| {
+        invalid_argument(format!(
+            "{field}.burst_id must be exactly 32 bytes (got {})",
+            burst_proto.burst_id.len()
+        ))
+    })?;
+    Ok(ContextBurst { pad, burst_id })
+}
+
 fn domain_generator_kind_to_proto(kind: DomainGeneratorKind) -> v1::GeneratorKind {
     match kind {
         DomainGeneratorKind::WeightedRandom => v1::GeneratorKind::WeightedRandom,
@@ -231,15 +259,41 @@ impl InputSynthesizer for SynthService {
             }
         };
 
-        let has_parent_burst = node_context.parent_burst.is_some();
+        let parent_burst = node_context
+            .parent_burst
+            .as_ref()
+            .map(|pb| decode_context_burst(pb, "node_context.parent_burst"))
+            .transpose()?;
+        let sibling_bursts = node_context
+            .sibling_bursts
+            .iter()
+            .enumerate()
+            .map(|(i, sb)| {
+                let burst = sb
+                    .burst
+                    .as_ref()
+                    .ok_or_else(|| {
+                        invalid_argument(format!(
+                            "node_context.sibling_bursts[{i}].burst is required"
+                        ))
+                    })
+                    .and_then(|pb| {
+                        decode_context_burst(pb, &format!("node_context.sibling_bursts[{i}].burst"))
+                    })?;
+                Ok(ScoredContextBurst {
+                    burst,
+                    score_delta: sb.score_delta,
+                })
+            })
+            .collect::<Result<Vec<_>, Status>>()?;
 
         let gen_ctx = GenContext {
             node_id: node_context.node_id.clone(),
             ram_features,
             recent_inputs,
+            parent_burst,
+            sibling_bursts,
         };
-
-        let availability = Availability { has_parent_burst };
 
         let (results, degraded) = propose(
             &effective_cfg,
@@ -247,7 +301,6 @@ impl InputSynthesizer for SynthService {
             req.k as usize,
             req.length_hint,
             req.seed,
-            availability,
             resolved_macros.as_ref(),
         );
 
@@ -288,6 +341,33 @@ impl InputSynthesizer for SynthService {
                         chain_index: mp.chain_index,
                     }
                 });
+                let mutation_proto = r.provenance.mutation.as_ref().map(|mp| {
+                    let ops: Vec<v1::MutationOp> =
+                        mp.ops
+                            .iter()
+                            .map(|op| {
+                                // prost map boundary: `args` is a `HashMap` on
+                                // the wire; built here from the sorted
+                                // `Vec<(K,V)>` the domain type carries (same
+                                // convention as `MacroProvenance.param_bindings`
+                                // above).
+                                #[allow(clippy::disallowed_types)]
+                            let args: std::collections::HashMap<String, String> =
+                                op.args.iter().cloned().collect();
+                                v1::MutationOp {
+                                    op: op.op.clone(),
+                                    args,
+                                }
+                            })
+                            .collect();
+                    v1::MutationProvenance {
+                        base_burst_id: mp.base_burst_id.to_vec(),
+                        donor_burst_id: mp.donor_burst_id.map(|d| d.to_vec()).unwrap_or_default(),
+                        base_was_sibling: mp.base_was_sibling,
+                        ops,
+                        post_clamp: mp.post_clamp,
+                    }
+                });
                 let provenance = v1::Provenance {
                     generator: domain_generator_kind_to_proto(r.provenance.generator) as i32,
                     slot: r.provenance.slot,
@@ -300,7 +380,7 @@ impl InputSynthesizer for SynthService {
                         .unwrap_or(v1::GeneratorKind::Unspecified)
                         as i32,
                     r#macro: macro_proto,
-                    mutation: None,
+                    mutation: mutation_proto,
                     policy: None,
                 };
                 ProvenancedBurst {

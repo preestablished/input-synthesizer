@@ -12,7 +12,7 @@ mod common;
 
 use std::time::{Duration, Instant};
 
-use synth_gen::propose::{propose, Availability};
+use synth_gen::propose::propose;
 
 const WARMUP: usize = 50;
 const ITERS: usize = 1000;
@@ -32,7 +32,6 @@ fn bench_propose() {
             K,
             LENGTH_HINT,
             0xB000_0000_0000_0000 ^ i as u64,
-            Availability::default(),
             None,
         );
     }
@@ -41,15 +40,7 @@ fn bench_propose() {
     for i in 0..ITERS {
         let seed = 0xB111_0000_0000_0000 ^ i as u64;
         let start = Instant::now();
-        let (results, _) = propose(
-            &cfg,
-            &ctx,
-            K,
-            LENGTH_HINT,
-            seed,
-            Availability::default(),
-            None,
-        );
+        let (results, _) = propose(&cfg, &ctx, K, LENGTH_HINT, seed, None);
         let elapsed = start.elapsed();
         std::hint::black_box(&results);
         samples.push(elapsed);

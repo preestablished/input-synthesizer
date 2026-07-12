@@ -4,11 +4,12 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use synth_core::types::{to_proto, Burst, PadBurst, PadSegment};
 use synth_proto::v1::input_synthesizer_client::InputSynthesizerClient;
 use synth_proto::v1::input_synthesizer_server::InputSynthesizerServer;
 use synth_proto::v1::{
     load_macro_pack_request, DocumentKind, HealthRequest, LoadMacroPackRequest, MineMacrosRequest,
-    ModelKind, NodeContext, ProposeBurstsRequest,
+    ModelKind, NodeContext, ProposeBurstsRequest, ProvenancedBurst,
 };
 use synth_server::SynthService;
 use tonic::transport::Channel;
@@ -828,6 +829,132 @@ async fn health_loaded_packs_contains_loaded_pack_id() {
         .expect("health after pack load")
         .into_inner();
     assert!(health.loaded_packs.contains(&pack_resp.document_id));
+
+    server.shutdown().await;
+}
+
+// ---------------------------------------------------------------------
+// M3: mutation (context decode, provenance wire-out, availability)
+// ---------------------------------------------------------------------
+
+/// `minimal.yaml` with the generator mix pinned to pure mutation, so every
+/// slot is forced through `synth_gen::mutation` when a parent (or sibling)
+/// burst is present.
+fn mutation_mix_config_bytes(experiment_id: &str) -> Vec<u8> {
+    let base = String::from_utf8(minimal_config_bytes()).expect("minimal.yaml is utf8");
+    let base = base.replace(
+        "experiment_id: exp-test",
+        &format!("experiment_id: {experiment_id}"),
+    );
+    format!(
+        "{base}\n\
+         generator_mix:\n\
+         \x20\x20weighted_random: 0.0\n\
+         \x20\x20macro: 0.0\n\
+         \x20\x20mutation: 1.0\n\
+         \x20\x20policy: 0.0\n"
+    )
+    .into_bytes()
+}
+
+/// A tiny legal one-segment pad burst wrapped as a `ProvenancedBurst`, with
+/// a valid content-addressed `burst_id` (`synth_core::types::to_proto`
+/// stamps it), for use as `NodeContext.parent_burst`/`sibling_bursts[].burst`.
+fn small_provenanced_burst() -> ProvenancedBurst {
+    let burst = Burst::Pad(PadBurst {
+        segments: vec![PadSegment {
+            buttons: 1,
+            hold_frames: 16,
+        }],
+    });
+    let proto_burst = to_proto(&burst, "console16-12btn-v1");
+    ProvenancedBurst {
+        burst: Some(proto_burst),
+        provenance: None,
+    }
+}
+
+#[tokio::test]
+async fn parent_burst_flows_through_to_mutation_provenance() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+
+    client
+        .load_macro_pack(load_request(mutation_mix_config_bytes("exp-mutation")))
+        .await
+        .expect("load mutation-mix config");
+
+    let parent = small_provenanced_burst();
+    let parent_burst_id = parent.burst.as_ref().unwrap().burst_id.clone();
+
+    let mut req = propose_request("exp-mutation", 8, "n", 0xF00D);
+    req.node_context = Some(NodeContext {
+        node_id: "n".to_owned(),
+        parent_burst: Some(parent),
+        ..Default::default()
+    });
+
+    let resp = client
+        .propose_bursts(req)
+        .await
+        .expect("propose with parent_burst")
+        .into_inner();
+
+    assert_eq!(resp.bursts.len(), 8);
+    let reasons: Vec<&str> = resp.degraded.iter().map(|d| d.reason.as_str()).collect();
+    assert!(
+        !reasons.contains(&"no_parent_burst"),
+        "degraded: {reasons:?}"
+    );
+
+    let mut mutation_slots = 0;
+    for pb in &resp.bursts {
+        let prov = pb.provenance.as_ref().expect("provenance present");
+        let Some(mp) = prov.mutation.as_ref() else {
+            continue;
+        };
+        mutation_slots += 1;
+        assert_eq!(mp.base_burst_id, parent_burst_id);
+    }
+    // Pure-mutation mix, no siblings: every slot bases off the parent.
+    assert_eq!(mutation_slots, 8);
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn malformed_parent_burst_id_is_invalid_argument() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+
+    client
+        .load_macro_pack(load_request(mutation_mix_config_bytes(
+            "exp-mutation-bad-id",
+        )))
+        .await
+        .expect("load mutation-mix config");
+
+    let mut parent = small_provenanced_burst();
+    // 5 bytes instead of the required 32.
+    parent.burst.as_mut().unwrap().burst_id = vec![1, 2, 3, 4, 5];
+
+    let mut req = propose_request("exp-mutation-bad-id", 4, "n", 1);
+    req.node_context = Some(NodeContext {
+        node_id: "n".to_owned(),
+        parent_burst: Some(parent),
+        ..Default::default()
+    });
+
+    let status = client
+        .propose_bursts(req)
+        .await
+        .expect_err("malformed parent_burst.burst_id must fail");
+    assert_eq!(status.code(), Code::InvalidArgument);
+    assert!(
+        status.message().contains("burst_id") && status.message().contains("32 bytes"),
+        "message: {}",
+        status.message()
+    );
 
     server.shutdown().await;
 }

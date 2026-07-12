@@ -12,18 +12,9 @@ use crate::context::{self, GenContext};
 use crate::macros;
 use crate::macros::ResolvedMacros;
 use crate::mixer::{allocate_slots, GeneratorWeight};
+use crate::mutation;
 use crate::provenance::{Degraded, GeneratorKind, Provenance};
 use crate::weighted_random;
-
-/// Availability inputs the server resolves before calling [`propose`].
-/// Macro availability is no longer a bare flag here (M2): it's derived from
-/// whether the caller passes a `Some(&ResolvedMacros)` with >= 1 eligible
-/// macro for this request's context — see `generator_weights`.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Availability {
-    /// The request carried a parent burst (mutation base, M3).
-    pub has_parent_burst: bool,
-}
 
 #[derive(Clone, Debug)]
 pub struct SlotResult {
@@ -34,15 +25,16 @@ pub struct SlotResult {
 /// Generate `k` bursts. Returns slot-ordered results plus the degraded list.
 ///
 /// `macros`: `None` if no packs are resolved/loaded for this request; else
-/// `Some(&ResolvedMacros)` from `synth_gen::macros::resolve`. Mutation (M3)
-/// and policy (M6) weight is still always reallocated in this milestone.
+/// `Some(&ResolvedMacros)` from `synth_gen::macros::resolve`. Mutation
+/// availability (M3) is derived from `ctx.parent_burst`/`ctx.sibling_bursts`
+/// directly (see `generator_weights`); policy (M6) weight is still always
+/// reallocated in this milestone.
 pub fn propose(
     cfg: &ExperimentConfig,
     ctx: &GenContext,
     k: usize,
     length_hint: u32,
     seed: u64,
-    availability: Availability,
     macros: Option<&ResolvedMacros>,
 ) -> (Vec<SlotResult>, Vec<Degraded>) {
     let root = fanout_root(seed, &ctx.node_id);
@@ -64,16 +56,17 @@ pub fn propose(
             .count()
     });
 
-    let weights = generator_weights(cfg, availability, macros.is_some(), eligible_macro_count);
+    let weights = generator_weights(cfg, ctx, macros.is_some(), eligible_macro_count);
     let mut mix_rng = stream(&root, "mix");
     let (plan, degraded) = allocate_slots(k, &weights, &mut mix_rng);
 
     let mut results = Vec::with_capacity(k);
     for (slot, kind) in plan.into_iter().enumerate() {
-        let (burst, rng_stream, macro_prov) = match kind {
+        let (burst, rng_stream, macro_prov, mutation_prov) = match kind {
             GeneratorKind::WeightedRandom => (
                 weighted_random::generate(cfg, ctx, &root, slot, length_hint),
                 format!("slot/{slot}/wr"),
+                None,
                 None,
             ),
             GeneratorKind::Macro => {
@@ -83,10 +76,14 @@ pub fn propose(
                 );
                 let (burst, prov) =
                     macros::generate_macro_burst(cfg, ctx, &root, slot, length_hint, resolved);
-                (burst, format!("slot/{slot}/macro"), Some(prov))
+                (burst, format!("slot/{slot}/macro"), Some(prov), None)
+            }
+            GeneratorKind::Mutation => {
+                let (burst, prov) = mutation::generate(cfg, ctx, &root, slot, &model);
+                (burst, format!("slot/{slot}/mut"), None, Some(prov))
             }
             // The mixer only assigns generators whose availability the
-            // caller vouched for; mutation lands with M3, policy with M6.
+            // caller vouched for; policy lands with M6.
             other => unreachable!("mixer assigned {other:?} but no such generator is wired yet"),
         };
         let burst = model.legalize(burst);
@@ -98,6 +95,7 @@ pub fn propose(
                 rng_stream,
                 fallback_from: None,
                 macro_: macro_prov,
+                mutation: mutation_prov,
             },
         });
     }
@@ -108,7 +106,7 @@ pub fn propose(
 /// always available (it needs nothing beyond config).
 fn generator_weights(
     cfg: &ExperimentConfig,
-    availability: Availability,
+    ctx: &GenContext,
     macros_present: bool,
     eligible_macro_count: usize,
 ) -> Vec<GeneratorWeight> {
@@ -120,6 +118,7 @@ fn generator_weights(
     } else {
         None
     };
+    let mutation_available = ctx.parent_burst.is_some() || !ctx.sibling_bursts.is_empty();
     vec![
         GeneratorWeight {
             kind: GeneratorKind::WeightedRandom,
@@ -134,13 +133,11 @@ fn generator_weights(
         GeneratorWeight {
             kind: GeneratorKind::Mutation,
             weight: mix.mutation,
-            // M3 wires the generator; until then the slot class is
-            // unavailable regardless of context.
-            unavailable: Some(if availability.has_parent_burst {
-                "mutation_generator_unavailable".to_owned()
+            unavailable: if mutation_available {
+                None
             } else {
-                "no_parent_burst".to_owned()
-            }),
+                Some("no_parent_burst".to_owned())
+            },
         },
         GeneratorWeight {
             kind: GeneratorKind::Policy,
@@ -176,17 +173,7 @@ mod tests {
     #[test]
     fn propose_is_deterministic_and_slot_ordered() {
         let cfg = cfg();
-        let run = || {
-            propose(
-                &cfg,
-                &ctx(),
-                32,
-                0,
-                0xDEADBEEF,
-                Availability::default(),
-                None,
-            )
-        };
+        let run = || propose(&cfg, &ctx(), 32, 0, 0xDEADBEEF, None);
         let (a, da) = run();
         let (b, db) = run();
         assert_eq!(a.len(), 32);
@@ -203,8 +190,8 @@ mod tests {
     #[test]
     fn different_seeds_differ() {
         let cfg = cfg();
-        let (a, _) = propose(&cfg, &ctx(), 4, 0, 1, Availability::default(), None);
-        let (b, _) = propose(&cfg, &ctx(), 4, 0, 2, Availability::default(), None);
+        let (a, _) = propose(&cfg, &ctx(), 4, 0, 1, None);
+        let (b, _) = propose(&cfg, &ctx(), 4, 0, 2, None);
         assert_ne!(
             a.iter().map(|r| &r.burst).collect::<Vec<_>>(),
             b.iter().map(|r| &r.burst).collect::<Vec<_>>()
@@ -214,7 +201,7 @@ mod tests {
     #[test]
     fn degraded_lists_unavailable_generators() {
         let cfg = cfg();
-        let (_, degraded) = propose(&cfg, &ctx(), 8, 0, 7, Availability::default(), None);
+        let (_, degraded) = propose(&cfg, &ctx(), 8, 0, 7, None);
         // Default mix: macro 0.35 (no packs), mutation 0.20 (no parent),
         // policy 0.0 (zero weight — not reported).
         let reasons: Vec<&str> = degraded.iter().map(|d| d.reason.as_str()).collect();
@@ -226,7 +213,7 @@ mod tests {
     #[test]
     fn bursts_are_legal_and_length_bounded() {
         let cfg = cfg();
-        let (results, _) = propose(&cfg, &ctx(), 64, 300, 99, Availability::default(), None);
+        let (results, _) = propose(&cfg, &ctx(), 64, 300, 99, None);
         for r in results {
             #[allow(irrefutable_let_patterns)]
             let Burst::Pad(pad) = &r.burst

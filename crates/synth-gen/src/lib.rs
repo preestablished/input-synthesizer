@@ -10,6 +10,7 @@
 pub mod context;
 pub mod macros;
 pub mod mixer;
+pub mod mutation;
 pub mod propose;
 pub mod provenance;
 pub mod weighted_random;

@@ -29,8 +29,10 @@ use synth_core::types::{Burst, PadBurst, PadSegment};
 use crate::context::{effective_button_priors, effective_direction_priors, GenContext};
 
 /// Inverse-CDF geometric draw on {1,2,…} with per-trial success `p`:
-/// `d = max(1, ceil(ln(1−u)/ln(1−p)))`; `p = 1 ⇒ d = 1`.
-fn geometric(rng: &mut ChaCha8Rng, p: f64) -> u64 {
+/// `d = max(1, ceil(ln(1−u)/ln(1−p)))`; `p = 1 ⇒ d = 1`. `pub(crate)`: reused
+/// by `synth_gen::mutation` (`extend`'s and `flip_button`'s repeat counts,
+/// ARCHITECTURE.md §5.2) so both generators draw from the identical formula.
+pub(crate) fn geometric(rng: &mut ChaCha8Rng, p: f64) -> u64 {
     debug_assert!(p > 0.0 && p <= 1.0);
     if p >= 1.0 {
         return 1;
@@ -88,7 +90,9 @@ struct DirSegment {
 }
 
 /// Direction name → bitmask (NEUTRAL = 0). Names are validated config.
-fn dir_mask(cfg: &ExperimentConfig, name: &str) -> u16 {
+/// `pub(crate)`: reused by `synth_gen::mutation`'s `flip_button` direction
+/// re-roll (ARCHITECTURE.md §5.2).
+pub(crate) fn dir_mask(cfg: &ExperimentConfig, name: &str) -> u16 {
     if name == "NEUTRAL" {
         0
     } else {
@@ -100,8 +104,10 @@ fn dir_mask(cfg: &ExperimentConfig, name: &str) -> u16 {
 }
 
 /// Pick from a categorical by normalized weights (assumes sum ≈ 1; falls
-/// back to the last entry on accumulated rounding).
-fn categorical(entries: &[(String, f64)], u: f64) -> &str {
+/// back to the last entry on accumulated rounding). `pub(crate)`: reused by
+/// `synth_gen::mutation` for op selection and `flip_button`'s direction
+/// re-roll (ARCHITECTURE.md §5.2).
+pub(crate) fn categorical(entries: &[(String, f64)], u: f64) -> &str {
     let mut acc = 0.0;
     for (name, w) in entries {
         acc += w;
@@ -146,6 +152,26 @@ fn direction_track(
     target: u64,
     rng: &mut ChaCha8Rng,
 ) -> Vec<DirSegment> {
+    let initial = ctx
+        .last_frame_mask()
+        .filter(|_| cfg.weighted_random.start_from_history.0);
+    direction_track_with_initial(cfg, ctx, target, initial, rng)
+}
+
+/// [`direction_track`], parameterized by an explicit initial-direction-mask
+/// override instead of always deriving it from `ctx`/`start_from_history`.
+/// `direction_track` itself passes exactly the same expression it always
+/// computed inline, so its behavior — and every M1/M2 golden depending on
+/// it — is unchanged; [`generate_single_stream_from_mask`] (`synth_gen::
+/// mutation`'s `extend` operator, ARCHITECTURE.md §5.2) is the only caller
+/// that passes `Some(..)` unconditionally.
+fn direction_track_with_initial(
+    cfg: &ExperimentConfig,
+    ctx: &GenContext,
+    target: u64,
+    initial: Option<u16>,
+    rng: &mut ChaCha8Rng,
+) -> Vec<DirSegment> {
     let dir_cfg = &cfg.weighted_random.direction;
     let priors = effective_direction_priors(cfg, ctx);
     let r = 1.0 / dir_cfg.mean_hold_frames.max(1.0);
@@ -154,12 +180,10 @@ fn direction_track(
         .mask(&cfg.button_alphabet.directions.group)
         .unwrap_or(0);
 
-    // Initial direction: continue history's direction bits when configured
-    // and present (temporal coherence); otherwise one categorical draw.
-    let mut current: u16 = match ctx
-        .last_frame_mask()
-        .filter(|_| cfg.weighted_random.start_from_history.0)
-    {
+    // Initial direction: continue the supplied mask when present (temporal
+    // coherence, or the caller's explicit override); otherwise one
+    // categorical draw.
+    let mut current: u16 = match initial {
         Some(mask) => mask & dir_group_mask,
         None => dir_mask(cfg, categorical(&priors, next_unit_f64(rng))),
     };
@@ -310,6 +334,46 @@ pub fn generate_single_stream(
             continue;
         }
         let initial_on = history_mask.map(|h| h & mask != 0);
+        let intervals = button_track(duty, mu, initial_on, target, rng);
+        if !intervals.is_empty() {
+            button_intervals.push((mask, intervals));
+        }
+    }
+
+    compose_segments(target, &dir_segments, &button_intervals)
+}
+
+/// Variant of [`generate_single_stream`] that forces the initial state (both
+/// the direction track and every non-direction button chain) to `initial_mask`
+/// instead of deriving it from `ctx`/`start_from_history` — used by
+/// `synth_gen::mutation`'s `extend` operator (ARCHITECTURE.md §5.2) to
+/// condition the appended segments on the burst's own final mask rather than
+/// request-level history. A new function rather than a new parameter on
+/// [`generate_single_stream`]/[`generate`]: those keep their existing
+/// signatures and draw order byte-for-byte (M1/M2 goldens depend on it);
+/// this one never runs on that path.
+pub fn generate_single_stream_from_mask(
+    cfg: &ExperimentConfig,
+    ctx: &GenContext,
+    target: u64,
+    initial_mask: u16,
+    rng: &mut ChaCha8Rng,
+) -> Vec<PadSegment> {
+    let dir_segments = direction_track_with_initial(cfg, ctx, target, Some(initial_mask), rng);
+
+    let priors = effective_button_priors(cfg, ctx);
+    let dir_group_mask = cfg
+        .button_alphabet
+        .mask(&cfg.button_alphabet.directions.group)
+        .unwrap_or(0);
+
+    let mut button_intervals: Vec<(u16, Vec<(u64, u64)>)> = Vec::new();
+    for &(bit, duty, mu) in &priors {
+        let mask = 1u16 << bit;
+        if mask & dir_group_mask != 0 {
+            continue;
+        }
+        let initial_on = Some(initial_mask & mask != 0);
         let intervals = button_track(duty, mu, initial_on, target, rng);
         if !intervals.is_empty() {
             button_intervals.push((mask, intervals));
