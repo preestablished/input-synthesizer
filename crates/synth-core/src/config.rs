@@ -59,14 +59,46 @@ impl ButtonAlphabet {
 
 // ---- 5.2 Generator mix -----------------------------------------------------
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct GeneratorMix {
     pub weighted_random: f64,
     #[serde(rename = "macro")]
     pub macro_: f64,
     pub mutation: f64,
     pub policy: f64,
+}
+
+/// API.md §5.2: "absent generator = 0" — within a PRESENT `generator_mix`
+/// map, omitted keys are 0.0, not the struct defaults (a partially-written
+/// map means "only these generators"). A wholly-absent section still gets
+/// the documented §5.2 defaults via `ExperimentConfig`'s field default.
+/// (Round-12 spec-diff: `#[serde(default)]` used to leak struct defaults
+/// into omitted keys of a present map.)
+impl<'de> serde::Deserialize<'de> for GeneratorMix {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Shadow {
+            #[serde(default)]
+            weighted_random: Option<f64>,
+            #[serde(rename = "macro", default)]
+            macro_: Option<f64>,
+            #[serde(default)]
+            mutation: Option<f64>,
+            #[serde(default)]
+            policy: Option<f64>,
+        }
+        let shadow = Shadow::deserialize(deserializer)?;
+        Ok(Self {
+            weighted_random: shadow.weighted_random.unwrap_or(0.0),
+            macro_: shadow.macro_.unwrap_or(0.0),
+            mutation: shadow.mutation.unwrap_or(0.0),
+            policy: shadow.policy.unwrap_or(0.0),
+        })
+    }
 }
 
 impl Default for GeneratorMix {

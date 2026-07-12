@@ -1,7 +1,7 @@
 # Resolution — Phase 4 M0–M2 v1 Generators (+M3)
 
 **Final state (read this first):** branch `phase4-v1-generators` HEAD;
-`cargo test --workspace` = 120 tests / 22 suites green; authoritative
+`cargo test --workspace` = 121 tests / 22 suites green; authoritative
 dual-arch CI evidence = the newest green run on the branch (every push
 triggers one; a documentation-only commit like the final sign-off edits
 necessarily trails its own run by one — check `gh run list` for the
@@ -10,7 +10,7 @@ head's conclusion). Run ids: 29181386490 (`ab36bb4`), 29195495676
 (`6d41748`), 29199743592 (`ab1e528`), 29200931736 (`ee17797`),
 29202385874 (`e096e47`), 29204053262 (`498bc6c`), 29205449380
 (`6ebf5a5`) — all success on both arches. Since the original handback
-(`20c8e0d`), eleven review rounds landed fixes — all documented in the
+(`20c8e0d`), twelve review rounds landed fixes — all documented in the
 round sections; per-round test counts in those sections are scoped to
 their round's SHA, not the final tree.
 
@@ -412,10 +412,32 @@ provenance records element 0 with macro_frames spanning the chain (§2.4);
 spec-diff's fifteen SPEC-SILENT implementation choices are recorded in its
 report; none contradicts the spec.
 
+## Review round 12 (final)
+
+Cold spec-diffs of the remaining halves plus adversarial verification of
+round 11. The sampler/mixer/conditioning half (ARCHITECTURE §3.1 + §4 in
+full + the §7.2 label table) came back **zero deviations** — including the
+two likeliest hiding spots, the a≤1 re-derivation under context
+adjustment and the diagonal-factor semantics. Round 11's post_clamp fix
+was verified empirically: the directed test was cherry-picked onto the
+pre-fix code and failed as predicted (a genuine falsifier), and the fix
+was proven golden-neutral by inspecting the fixtures (no golden case
+records a retry op). The API §5 config-schema diff found **one real
+deviation, fixed**: within a PRESENT `generator_mix` map the doc says
+absent keys are 0, but serde's struct-default fill leaked 0.35/0.20 into
+omitted keys — `GeneratorMix` now has asymmetric semantics (whole section
+absent → documented defaults; present map → omitted keys 0.0) with a
+regression test; every existing config specifies all four keys, so
+nothing else changed. Doc pins: API §5.2's "normalized at load" corrected
+to propose-time-over-available (dated), and the full hardening-validation
+addendum (accumulated over rounds 7–11: finiteness, range bounds,
+op-prob key/value rules, per-request budgets) is now pinned at the end of
+API §5 so the doc's validation list matches the implementation.
+
 ## Verification pointers
 
 Clean checkout at the HEAD of branch `phase4-v1-generators`: `cargo test
---workspace` (120 tests / 22
+--workspace` (121 tests / 22
 suites; needs the sibling `control-plane` checkout at `proto-v0.2.0`);
 golden recorder modes are `--ignored` tests; the CI golden↔version rule's
 synthetic-violation reproduction is documented in
