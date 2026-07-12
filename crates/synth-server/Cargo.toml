@@ -16,6 +16,7 @@ synth-proto = { workspace = true }
 
 indexmap = { workspace = true }
 blake3 = { workspace = true }
+serde_yaml = { workspace = true }
 
 tokio = { workspace = true }
 tonic = { workspace = true }

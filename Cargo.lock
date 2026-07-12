@@ -1444,6 +1444,7 @@ dependencies = [
  "hyper-util",
  "indexmap",
  "prometheus",
+ "serde_yaml",
  "synth-core",
  "synth-gen",
  "synth-pad",

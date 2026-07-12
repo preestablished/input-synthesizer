@@ -22,6 +22,7 @@ use tonic::{Request, Response, Status};
 use synth_core::config::ExperimentConfig;
 use synth_core::SYNTH_VERSION;
 use synth_gen::context::GenContext;
+use synth_gen::macros::{self, MacroPackError, PackRegistry};
 use synth_gen::propose::{propose, Availability};
 use synth_gen::provenance::GeneratorKind as DomainGeneratorKind;
 use synth_proto::v1::input_synthesizer_server::InputSynthesizer;
@@ -37,9 +38,8 @@ struct State {
     /// experiment_id -> (config, hex document hash of the raw bytes it was
     /// loaded from). Insertion order preserved for `Health.loaded_experiments`.
     experiments: IndexMap<String, (ExperimentConfig, String)>,
-    /// Loaded macro pack ids (M2 placeholder: always empty in M1 — the
-    /// `MACRO_PACK` document kind is rejected until M2 lands).
-    loaded_pack_ids: Vec<String>,
+    /// Loaded macro packs (M2): held behind the same lock as `experiments`.
+    pack_registry: PackRegistry,
 }
 
 pub struct SynthService {
@@ -58,7 +58,7 @@ impl SynthService {
         Self {
             state: RwLock::new(State {
                 experiments: IndexMap::new(),
-                loaded_pack_ids: Vec::new(),
+                pack_registry: PackRegistry::new(),
             }),
             metrics: metrics::Metrics::new(),
         }
@@ -76,6 +76,45 @@ impl SynthService {
             .experiments
             .insert(cfg.experiment_id.clone(), (cfg, doc_id.clone()));
         Ok(doc_id)
+    }
+
+    /// Convenience for standalone bring-up (`main.rs --load`): parse,
+    /// validate, and load a macro pack document, returning its `pack_id` or
+    /// the joined error text (parse errors carry line/column; validation
+    /// errors are joined one per line, API.md §2.2).
+    pub fn load_macro_pack_doc(&self, bytes: &[u8]) -> Result<String, String> {
+        self.load_macro_pack_bytes(bytes)
+            .map(|(pack_id, _, _)| pack_id)
+    }
+
+    /// Shared implementation behind the `LoadMacroPack` RPC (kind ==
+    /// `MACRO_PACK`) and `load_macro_pack_doc`: parse + validate atomically
+    /// (`synth_gen::macros::load_pack`), insert into the registry (identical
+    /// bytes -> no-op, same `pack_id`, API.md §2.2), and update the
+    /// `synth_macro_packs_loaded` gauge. Returns `(pack_id, items_loaded,
+    /// warnings)`.
+    fn load_macro_pack_bytes(&self, bytes: &[u8]) -> Result<(String, u32, Vec<String>), String> {
+        let pack = macros::load_pack(bytes).map_err(format_pack_error)?;
+        let pack_id = pack.pack_id.clone();
+        let items_loaded = u32::try_from(pack.macros.len()).unwrap_or(u32::MAX);
+
+        let mut state = self.state.write().expect("state lock poisoned");
+        let warnings = state.pack_registry.insert(pack);
+        self.metrics
+            .macro_packs_loaded
+            .set(i64::try_from(state.pack_registry.pack_ids().len()).unwrap_or(i64::MAX));
+
+        Ok((pack_id, items_loaded, warnings))
+    }
+}
+
+/// Parse errors keep their `Display` form (message + `(line L, column C)`);
+/// validation errors are joined one per line rather than `Display`'s `"; "`
+/// join, per the task's error-shape contract.
+fn format_pack_error(e: MacroPackError) -> String {
+    match e {
+        MacroPackError::Parse { .. } => e.to_string(),
+        MacroPackError::Invalid(errs) => errs.join("\n"),
     }
 }
 
@@ -131,7 +170,7 @@ impl InputSynthesizer for SynthService {
                     req.experiment_id
                 )));
             };
-            (cfg.clone(), state.loaded_pack_ids.clone())
+            (cfg.clone(), state.pack_registry.pack_ids())
         };
 
         if base_cfg.model != synth_core::config::ModelKindCfg::Pad {
@@ -146,28 +185,22 @@ impl InputSynthesizer for SynthService {
         synth_core::config::validate(&effective_cfg)
             .map_err(|errs| invalid_argument(join_errors(&errs)))?;
 
-        // FAILED_PRECONDITION: config references macro packs that aren't
-        // loaded and macro weight is actually in play. M1 never has any
-        // packs loaded, so this fires whenever a config both names packs
-        // and assigns them nonzero weight.
-        if effective_cfg.generator_mix.macro_ > 0.0 {
-            let missing: Vec<&String> = effective_cfg
-                .macro_
-                .packs
-                .iter()
-                .filter(|p| !loaded_pack_ids.contains(p))
-                .collect();
-            if !missing.is_empty() {
-                let names = missing
-                    .iter()
-                    .map(|s| s.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                return Err(Status::failed_precondition(format!(
-                    "experiment config references macro pack(s) not loaded: {names}"
-                )));
-            }
-        }
+        // Resolve macro packs only when the effective config actually puts
+        // the macro generator in play (names >= 1 pack AND macro mix weight
+        // > 0); otherwise `None` preserves the existing degraded
+        // (`no_macros_loaded`) behavior. `PackNotLoaded` / `AlphabetMismatch`
+        // / `UnresolvableButton` all become FAILED_PRECONDITION naming the
+        // pack/button, since these are config-vs-server-state mismatches,
+        // not malformed requests.
+        let resolved_macros =
+            if !effective_cfg.macro_.packs.is_empty() && effective_cfg.generator_mix.macro_ > 0.0 {
+                let state = self.state.read().expect("state lock poisoned");
+                let resolved = macros::resolve(&state.pack_registry, &effective_cfg)
+                    .map_err(|e| Status::failed_precondition(e.to_string()))?;
+                Some(resolved)
+            } else {
+                None
+            };
 
         let node_context = req
             .node_context
@@ -208,9 +241,6 @@ impl InputSynthesizer for SynthService {
 
         let availability = Availability { has_parent_burst };
 
-        // Macro packs are not yet loadable through this server shell
-        // (`LoadMacroPack` rejects `DOCUMENT_KIND_MACRO_PACK` below); a
-        // follow-up wires a `PackRegistry` into `State` and resolves it here.
         let (results, degraded) = propose(
             &effective_cfg,
             &gen_ctx,
@@ -218,7 +248,7 @@ impl InputSynthesizer for SynthService {
             req.length_hint,
             req.seed,
             availability,
-            None,
+            resolved_macros.as_ref(),
         );
 
         let fingerprint =
@@ -238,6 +268,26 @@ impl InputSynthesizer for SynthService {
                     .inc();
 
                 let burst_proto = synth_core::types::to_proto(&r.burst, &alphabet_name);
+                let macro_proto = r.provenance.macro_.as_ref().map(|mp| {
+                    // prost map boundary: `param_bindings` is a `HashMap` on
+                    // the wire; built here from the sorted `Vec<(K,V)>` the
+                    // domain type carries (never compared/golden-tested in
+                    // its raw wire form, per the macro-pack determinism
+                    // rule).
+                    #[allow(clippy::disallowed_types)]
+                    let param_bindings: std::collections::HashMap<
+                        String,
+                        String,
+                    > = mp.param_bindings.iter().cloned().collect();
+                    v1::MacroProvenance {
+                        pack_id: mp.pack_id.clone(),
+                        macro_name: mp.macro_name.clone(),
+                        param_bindings,
+                        macro_frames: mp.macro_frames,
+                        tail_frames: mp.tail_frames,
+                        chain_index: mp.chain_index,
+                    }
+                });
                 let provenance = v1::Provenance {
                     generator: domain_generator_kind_to_proto(r.provenance.generator) as i32,
                     slot: r.provenance.slot,
@@ -249,7 +299,7 @@ impl InputSynthesizer for SynthService {
                         .map(domain_generator_kind_to_proto)
                         .unwrap_or(v1::GeneratorKind::Unspecified)
                         as i32,
-                    r#macro: None,
+                    r#macro: macro_proto,
                     mutation: None,
                     policy: None,
                 };
@@ -315,13 +365,10 @@ impl InputSynthesizer for SynthService {
                     "event_grammar documents are not supported until M5",
                 ));
             }
-            DocumentKind::MacroPack => {
-                return Err(invalid_argument("macro packs land with M2"));
-            }
             DocumentKind::Unspecified => {
                 return Err(invalid_argument("kind must be specified"));
             }
-            DocumentKind::ExperimentConfig => {}
+            DocumentKind::MacroPack | DocumentKind::ExperimentConfig => {}
         }
 
         let bytes = match req.source {
@@ -337,6 +384,17 @@ impl InputSynthesizer for SynthService {
                 ));
             }
         };
+
+        if kind == DocumentKind::MacroPack {
+            let (pack_id, items_loaded, warnings) = self
+                .load_macro_pack_bytes(&bytes)
+                .map_err(invalid_argument)?;
+            return Ok(Response::new(LoadMacroPackResponse {
+                document_id: pack_id,
+                items_loaded,
+                warnings,
+            }));
+        }
 
         let cfg = synth_core::config::parse(&bytes).map_err(|e| invalid_argument(e.to_string()))?;
         synth_core::config::validate(&cfg).map_err(|errs| invalid_argument(join_errors(&errs)))?;
@@ -380,7 +438,7 @@ impl InputSynthesizer for SynthService {
         Ok(Response::new(HealthResponse {
             status: v1::health_response::Status::Serving as i32,
             synth_version: SYNTH_VERSION.to_owned(),
-            loaded_packs: state.loaded_pack_ids.clone(),
+            loaded_packs: state.pack_registry.pack_ids(),
             loaded_experiments: state.experiments.keys().cloned().collect(),
             policy_endpoint_up: false,
             policy_deterministic: false,
