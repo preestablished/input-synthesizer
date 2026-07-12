@@ -22,9 +22,15 @@
 #      root Cargo.toml, commit it, re-run                # expect: exit 0
 #   5. Clean up: git checkout main && git branch -D scratch-golden-check
 #
-# Note: verified against this repo's root Cargo.toml — the
-# `version = "0.1.0"` line under [workspace.package] is the ONLY
-# `^version = ` line in that file, so the grep below is unambiguous here.
+# Note: verified against this repo's root Cargo.toml — the `version = ...`
+# line under [workspace.package] is the ONLY line in that file starting with
+# `version = ` (workspace.dependencies entries are inline tables and never
+# start a line with it), so the grep below is unambiguous here.
+#
+# Known boundary: `git fetch --deepen=50` only walks 50 commits past the
+# current shallow boundary. A PR branched >50 commits behind main may fail
+# to find a merge-base and fall into the "no range to check" no-op — rerun
+# with a full fetch if the gate matters for such a branch.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"

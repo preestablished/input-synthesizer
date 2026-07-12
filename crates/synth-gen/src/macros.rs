@@ -557,7 +557,8 @@ impl PackRegistry {
     /// Load (or replace, if `pack.pack_id` is already present — no-op
     /// semantics for the RPC live at the server) a pack. Returns warnings
     /// for any macro name that now shadows a same-name macro in a
-    /// *different* already-loaded pack.
+    /// *different* already-loaded pack, and for a same-name pack
+    /// replacement.
     pub fn insert(&mut self, pack: MacroPack) -> Vec<String> {
         if let Some(idx) = self.packs.iter().position(|p| p.pack_id == pack.pack_id) {
             self.packs[idx] = pack;
@@ -565,6 +566,20 @@ impl PackRegistry {
         }
 
         let mut warnings = Vec::new();
+        // A pack NAME owns exactly one document: loading different content
+        // under an existing name replaces the old pack. Without this,
+        // `get(name)` would resolve an ambiguous name by registry LOAD
+        // order, which is not part of the config fingerprint — two replicas
+        // with identical fingerprints could resolve different packs (the
+        // same cross-process determinism bug the `macro.packs` list-order
+        // rule closes for macro names).
+        if let Some(idx) = self.packs.iter().position(|p| p.name == pack.name) {
+            warnings.push(format!(
+                "pack '{}' (id {}) replaced by id {} — a pack name owns one document",
+                pack.name, self.packs[idx].pack_id, pack.pack_id
+            ));
+            self.packs.remove(idx);
+        }
         for m in &pack.macros {
             for other in &self.packs {
                 if other.macros.iter().any(|om| om.name == m.name) {
