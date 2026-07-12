@@ -1,5 +1,13 @@
 # Resolution — Phase 4 M0–M2 v1 Generators (+M3)
 
+**Final state (read this first):** branch `phase4-v1-generators` HEAD;
+`cargo test --workspace` = 108 tests / 22 suites green; authoritative
+dual-arch CI evidence = the newest green run on the branch head (every
+round's commit has its own green run; run ids per round below). Since the
+original handback (`20c8e0d`), six review rounds landed fixes — all
+documented in the round sections; per-round test counts in those sections
+are scoped to their round's SHA, not the final tree.
+
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
 subagent reviews before execution; review deltas in commit `fccfdbf`).
@@ -58,9 +66,11 @@ recorded as an HTML comment in the doc itself (dated 2026-07-12).
   `synth-gen golden_seed` (50 M1 cases), `golden_macro` (8 M2 cases),
   `golden_mutation` (12 M3 cases), all with committed fixtures under
   `testdata/`. CI runs every suite on both matrix arms (`ubuntu-latest`
-  x86_64 + `ubuntu-24.04-arm` aarch64): run
-  https://github.com/preestablished/input-synthesizer/actions/runs/29181386490
-  (branch `phase4-v1-generators`, commit `ab36bb4`) — **green on both arms**.
+  x86_64 + `ubuntu-24.04-arm` aarch64). Authoritative evidence = the newest
+  green run on the branch head (run 29200931736 on `ee17797` at round 5 —
+  both arms green — plus one more for the round-6 doc/fixture commit; every
+  intermediate round also ran green). The first green run (29181386490 on
+  `ab36bb4`) predates the 0.2.0 golden regeneration and is historical only.
 - **(b) χ²/KS distribution tests green** —
   `synth-gen tests/statistical_suite.rs`: per-button duty χ² (Markov
   variance-inflated), hold durations vs Geometric(1/μ) (χ² + mean ±10%),
@@ -81,10 +91,12 @@ use), clippy `-D warnings` with `disallowed-types` HashMap/HashSet deny
 (verified to fail a synthetic violation), and the golden↔version gate
 (`ci/check-golden-version.sh`; both fail and pass legs exercised on a scratch
 branch; reproduction one-liner in the script header). The work was pushed as
-branch `phase4-v1-generators` (pushing `main` requires operator approval);
-CI run 29181386490 on commit `ab36bb4` completed **success on both arches**
-(`rust (x86_64)` ✓, `rust (aarch64)` ✓; bench jobs ✓) — no aarch64 pending
-debt. Fast-forwarding `main` to the branch is left to the operator.
+branch `phase4-v1-generators` (pushing `main` requires operator approval).
+Every commit pushed to the branch ran the matrix green — most recently run
+29200931736 on `ee17797` (`rust (x86_64)` ✓, `rust (aarch64)` ✓, bench ✓);
+earlier greens: 29181386490 (`ab36bb4`), 29195495676 (`c9851c3`),
+29197027014, 29198388598 (`6d41748`), 29199743592 (`ab1e528`). No aarch64
+pending debt. Fast-forwarding `main` to the branch is left to the operator.
 
 ## v1 gate evidence
 
@@ -191,9 +203,14 @@ header updated. The version-skew the audit flagged (smoke ran against the
 pre-review 0.1.0 image) was closed by rebuilding from `9353272` and
 re-running the 1,000-call smoke: 0 errors, 0 illegal bursts,
 `synth_version 0.2.0` (evidence doc, rerun section). Workspace at 106 tests
-/ 21 suites green.
+/ 21 suites green at that SHA. Scoping note (round 6): the rerun image was
+built from `9353272` and therefore predates rounds 3–5's code changes
+(`6d41748` id-first lookup, `ab1e528` Health.loaded_packs names+ids,
+`ee17797` contract fixtures); those changes are additive or off the smoke's
+pack-id-based path and are covered by the unit/integration suites and CI on
+the branch head, not by a further live-container rerun.
 
-## Review round 3 (this SHA)
+## Review round 3 (`6d41748`)
 
 An adversarial verification of round 2 plus a full dry-run of the
 phases-track verification procedure from a clean checkout (steps 1-5 of
@@ -209,7 +226,7 @@ id-first (ids unique by construction, names unique by replacement), making
 lookup a pure function of the loaded set; regression test
 `pack_id_lookup_beats_name_collision_regardless_of_load_order`.
 
-## Review round 4 (this SHA)
+## Review round 4 (`ab1e528`)
 
 Two further reviews: a consumer-contract audit reading the orchestrator's
 client layer (orch-clients DTOs, orch-driver validators, grpc conversions)
@@ -229,7 +246,7 @@ Health.status is constant SERVING in v1 (no policy tier to degrade on);
 their tonic error mapper files Unimplemented under Internal (their side,
 cosmetic).
 
-## Review round 5 (this SHA)
+## Review round 5 (`ee17797`)
 
 A hypervisor-seam contract review and a mathematical audit of the
 statistical suites (+ adversarial verification of round 4). The math audit
@@ -245,8 +262,8 @@ validation-counter gap sharpened in open item 2).
 
 ## Verification pointers
 
-Clean checkout at `9353272` (final SHA incl. both review rounds): `cargo test
---workspace` (106 tests / 21
+Clean checkout at the HEAD of branch `phase4-v1-generators`: `cargo test
+--workspace` (108 tests / 22
 suites; needs the sibling `control-plane` checkout at `proto-v0.2.0`);
 golden recorder modes are `--ignored` tests; the CI golden↔version rule's
 synthetic-violation reproduction is documented in
