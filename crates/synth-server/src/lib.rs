@@ -275,7 +275,7 @@ impl InputSynthesizer for SynthService {
         let frames_budget = u64::from(req.k) * u64::from(effective_cfg.burst_len.max_frames);
         if frames_budget > 600_000 {
             return Err(invalid_argument(format!(
-                "k ({}) x burst_len.max_frames ({}) = {frames_budget} exceeds the                  600000-frame per-request budget; lower k or max_frames",
+                "k ({}) x burst_len.max_frames ({}) = {frames_budget} exceeds the 600000-frame per-request budget; lower k or max_frames",
                 req.k, effective_cfg.burst_len.max_frames
             )));
         }
