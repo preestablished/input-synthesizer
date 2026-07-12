@@ -4,9 +4,14 @@ on:
   push:
 jobs:
   rust:
+    name: rust (${{ matrix.arch }})
     strategy:
       matrix:
-        runner: [ubuntu-latest]
+        include:
+          - runner: ubuntu-latest
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -16,10 +21,47 @@ jobs:
         with:
           repository: ${{ github.repository_owner }}/control-plane
           path: control-plane
+          # Pinned: an unrelated control-plane HEAD change must never
+          # silently change the proto we build against (docs/proto-audit.md).
+          ref: proto-v0.2.0
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - run: cargo fmt --all -- --check
+        working-directory: repo
+      - run: cargo clippy --workspace --all-targets -- -D warnings
         working-directory: repo
       - run: cargo build --workspace
         working-directory: repo
       - run: cargo test --workspace
+        working-directory: repo
+      # Golden/version gate: PR-only heuristic (see script header for the
+      # documented boundary on direct pushes / rebased stacks).
+      - if: github.event_name == 'pull_request'
+        run: ci/check-golden-version.sh
+        working-directory: repo
+  bench:
+    name: bench (${{ matrix.arch }})
+    # Stretch/M1 bench harness; keep CI green while it lands incrementally.
+    continue-on-error: true
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: repo
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/control-plane
+          path: control-plane
+          ref: proto-v0.2.0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: bench_propose (M1 adds the real bench; guarded no-op until then)
+        run: cargo test -p synth-gen --release bench_propose -- --ignored --nocapture || true
         working-directory: repo
