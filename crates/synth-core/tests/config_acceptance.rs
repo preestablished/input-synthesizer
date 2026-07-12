@@ -352,3 +352,29 @@ fn deep_merge_override_can_introduce_a_validation_failure() {
 fn _assert_error_display(e: &ConfigError) -> String {
     e.to_string()
 }
+
+/// Round-12 (API §5.2): within a PRESENT generator_mix map, absent keys are
+/// 0.0 — not the struct defaults; a wholly-absent section still defaults to
+/// 0.45/0.35/0.20/0.0.
+#[test]
+fn partial_generator_mix_zero_fills_absent_keys() {
+    let base =
+        std::fs::read_to_string(fixtures_dir().join("valid/minimal.yaml")).expect("read minimal");
+    let partial = base.replace(
+        "experiment_id: exp-test",
+        "experiment_id: exp-test\ngenerator_mix: { weighted_random: 1.0 }",
+    );
+    let cfg = parse(partial.as_bytes()).expect("parse partial mix");
+    assert_eq!(cfg.generator_mix.weighted_random, 1.0);
+    assert_eq!(
+        cfg.generator_mix.macro_, 0.0,
+        "absent key must be 0, not 0.35"
+    );
+    assert_eq!(cfg.generator_mix.mutation, 0.0);
+    assert_eq!(cfg.generator_mix.policy, 0.0);
+    synth_core::config::validate(&cfg).expect("valid");
+
+    // Wholly-absent section keeps the documented §5.2 defaults.
+    let cfg = parse(base.as_bytes()).expect("parse minimal");
+    assert_eq!(cfg.generator_mix.macro_, 0.35);
+}
