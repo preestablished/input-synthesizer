@@ -189,6 +189,53 @@ macros:
     assert_eq!(winner2.pack_id, registry.get("pack-b").unwrap().pack_id);
 }
 
+/// A pack NAME owns exactly one document: loading different content under an
+/// existing pack name replaces the old pack (with a warning) instead of
+/// leaving `get(name)` ambiguous and load-order-dependent. The replacement
+/// also removes the old pack_id from `pack_ids()`, so two replicas that
+/// loaded different same-name documents can never share a config
+/// fingerprint (review round 2, residual of fix #4).
+#[test]
+fn same_pack_name_different_content_replaces_and_changes_pack_ids() {
+    let v1_yaml = br#"
+version: 1
+kind: macro_pack
+name: core
+model: pad
+button_alphabet: console16-12btn-v1
+source: handwritten
+macros:
+  - { name: tap-a, weight: 1.0, steps: [{ hold: [A], frames: 4 }] }
+"#;
+    let v2_yaml = br#"
+version: 1
+kind: macro_pack
+name: core
+model: pad
+button_alphabet: console16-12btn-v1
+source: handwritten
+macros:
+  - { name: tap-b, weight: 1.0, steps: [{ hold: [B], frames: 4 }] }
+"#;
+    let v1 = macros::load_pack(v1_yaml).expect("load v1");
+    let v2 = macros::load_pack(v2_yaml).expect("load v2");
+    let (v1_id, v2_id) = (v1.pack_id.clone(), v2.pack_id.clone());
+    assert_ne!(v1_id, v2_id);
+
+    let mut registry = PackRegistry::new();
+    assert!(registry.insert(v1).is_empty());
+    let warnings = registry.insert(v2);
+    assert_eq!(warnings.len(), 1);
+    assert!(warnings[0].contains("replaced"), "warning: {warnings:?}");
+
+    // The name now resolves unambiguously to the latest document, the old
+    // pack_id is gone from the fingerprint input, and only one pack remains.
+    assert_eq!(registry.get("core").unwrap().pack_id, v2_id);
+    assert_eq!(registry.pack_ids(), vec![v2_id.clone()]);
+    assert!(registry.get(&v1_id).is_none());
+    assert!(registry.get(&v2_id).is_some());
+}
+
 // ---------------------------------------------------------------------
 // Eligibility
 // ---------------------------------------------------------------------

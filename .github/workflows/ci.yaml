@@ -62,6 +62,9 @@ jobs:
           path: control-plane
           ref: proto-v0.2.0
       - uses: dtolnay/rust-toolchain@stable
-      - name: bench_propose (M1 adds the real bench; guarded no-op until then)
-        run: cargo test -p synth-gen --release bench_propose -- --ignored --nocapture || true
+      # No `|| true` here: continue-on-error at the job level already keeps
+      # this non-blocking, and swallowing the exit code would hide even a
+      # compile error behind a green checkmark.
+      - name: bench_propose (non-gating)
+        run: cargo test -p synth-gen --release bench_propose -- --ignored --nocapture
         working-directory: repo
