@@ -121,11 +121,23 @@ mutant after the single forced retry; the retry uses its own stream label
 
 ## Offers / seams raised
 
-- **Hypervisor contract-test fixtures** (risk-table item): burst fixtures
-  under `testdata/golden/m1/goldens.yaml` (+ the recorder tests) are offered
-  to determinism-hypervisor for their burst→input-log contract test; any
-  case's `(request, burst_id)` pairs regenerate deterministically from the
-  committed configs.
+- **Hypervisor contract-test fixtures** (risk-table item): round 5 found the
+  original offer hollow — the golden files carry canonical hashes only.
+  `testdata/contract/pad-burst-fixtures.yaml` now carries RAW
+  `(buttons_mask, hold_frames)` segment lists per slot (with burst_ids and
+  the generating seeds/config), verified against the sampler by
+  `contract_fixtures.rs` — directly consumable by a burst→input-log
+  translation test. Seam facts established by the round-5 review: the
+  translation actually lives in exploration-orchestrator
+  (`orch-sched/src/driver.rs` `burst_events`, run-length → edge-triggered
+  PAD_SET — correctly implemented), determinism-hypervisor never talks to
+  this service directly, and **no consumer-side illegal-burst validation
+  counter exists yet anywhere** — open item 2 therefore requires that
+  counter to be BUILT (orchestrator or hypervisor side), not merely a
+  window scheduled. Bit assignments verified identical across
+  reference-workload / API.md §5.1; button-name casing differs
+  (reference-workload mixed-case, non-aliased) — API.md §5.1 wording
+  corrected; cross-repo resolution is by bit, never name.
 - **Pack-reference seam — resolved producer-side in round 4**: the
   orchestrator's bring-up validates `macro.packs` entries against
   `Health.loaded_packs` by verbatim membership. `loaded_packs` originally
@@ -216,6 +228,20 @@ legality check and clearer arg-parse errors. Known non-issues recorded:
 Health.status is constant SERVING in v1 (no policy tier to degrade on);
 their tonic error mapper files Unimplemented under Internal (their side,
 cosmetic).
+
+## Review round 5 (this SHA)
+
+A hypervisor-seam contract review and a mathematical audit of the
+statistical suites (+ adversarial verification of round 4). The math audit
+confirmed every derivation CORRECT — Markov variance inflation
+(1+ρ)/(1−ρ) exact, hold-bucket telescoping and dof right, Wald's identity
+grounds the direction/κ closed form, context-rule and median sizing sound,
+mutation multinomial exact with ~6.7σ mean margin — with design notes only
+(κ̂ ±0.05 nearly subsumed by the mean-length gate; min(B,3) provably dead
+since B≤3; both match the spec text as written). Round 4 verified clean.
+The seam review's findings and fixes are folded into the offers section
+above (real raw-segment contract fixtures; casing correction; the
+validation-counter gap sharpened in open item 2).
 
 ## Verification pointers
 
