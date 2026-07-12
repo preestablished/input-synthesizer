@@ -1386,7 +1386,7 @@ checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
 
 [[package]]
 name = "synth-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "blake3",
  "indexmap",
@@ -1404,7 +1404,7 @@ dependencies = [
 
 [[package]]
 name = "synth-gen"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "blake3",
  "indexmap",
@@ -1421,7 +1421,7 @@ dependencies = [
 
 [[package]]
 name = "synth-pad"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proptest",
  "synth-core",
@@ -1429,14 +1429,14 @@ dependencies = [
 
 [[package]]
 name = "synth-proto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "determinism-proto",
 ]
 
 [[package]]
 name = "synth-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "blake3",
  "http-body-util",

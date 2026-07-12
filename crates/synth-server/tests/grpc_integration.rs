@@ -285,6 +285,48 @@ async fn k_zero_is_invalid_argument() {
 }
 
 #[tokio::test]
+async fn k_256_is_success() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+    client
+        .load_macro_pack(load_request(minimal_config_bytes()))
+        .await
+        .expect("load config");
+
+    let resp = client
+        .propose_bursts(propose_request("exp-test", 256, "n", 1))
+        .await
+        .expect("k=256 must succeed")
+        .into_inner();
+    assert_eq!(resp.bursts.len(), 256);
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn k_257_is_invalid_argument() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+    client
+        .load_macro_pack(load_request(minimal_config_bytes()))
+        .await
+        .expect("load config");
+
+    let status = client
+        .propose_bursts(propose_request("exp-test", 257, "n", 1))
+        .await
+        .expect_err("k=257 must fail");
+    assert_eq!(status.code(), Code::InvalidArgument);
+    assert!(
+        status.message().contains('k'),
+        "message: {}",
+        status.message()
+    );
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
 async fn k_over_256_is_invalid_argument() {
     let server = TestServer::start().await;
     let mut client = server.client().await;
@@ -732,6 +774,38 @@ async fn propose_bursts_referencing_unloaded_pack_is_failed_precondition() {
     server.shutdown().await;
 }
 
+/// Fix #13 (API.md §5): pack presence must be checked unconditionally at
+/// ProposeBursts time, even when the effective config's macro mix weight is
+/// 0.0 — a previous bug only checked presence when macro weight > 0.
+#[tokio::test]
+async fn unloaded_pack_with_zero_macro_weight_is_still_failed_precondition() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+
+    client
+        .load_macro_pack(load_request(macro_mix_config_bytes(
+            "exp-missing-pack-zero-weight",
+            &["never-loaded-pack"],
+            1.0,
+            0.0,
+        )))
+        .await
+        .expect("load config referencing an unloaded pack with macro weight 0");
+
+    let status = client
+        .propose_bursts(propose_request("exp-missing-pack-zero-weight", 4, "n", 1))
+        .await
+        .expect_err("unloaded pack must fail unconditionally, regardless of macro weight");
+    assert_eq!(status.code(), Code::FailedPrecondition);
+    assert!(
+        status.message().contains("never-loaded-pack"),
+        "message: {}",
+        status.message()
+    );
+
+    server.shutdown().await;
+}
+
 #[tokio::test]
 async fn config_fingerprint_changes_after_loading_an_additional_pack() {
     let server = TestServer::start().await;
@@ -918,6 +992,45 @@ async fn parent_burst_flows_through_to_mutation_provenance() {
     }
     // Pure-mutation mix, no siblings: every slot bases off the parent.
     assert_eq!(mutation_slots, 8);
+
+    server.shutdown().await;
+}
+
+/// Fix #1 (wire-reachable panic): a pure-mutation mix with no parent/
+/// siblings must degrade to weighted-random for every slot instead of
+/// panicking inside the mixer.
+#[tokio::test]
+async fn mutation_only_mix_without_parent_falls_back_to_weighted_random() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+
+    client
+        .load_macro_pack(load_request(mutation_mix_config_bytes(
+            "exp-mutation-fallback",
+        )))
+        .await
+        .expect("load mutation-mix config");
+
+    let resp = client
+        .propose_bursts(propose_request("exp-mutation-fallback", 8, "n", 1))
+        .await
+        .expect("propose must succeed via the weighted-random fallback")
+        .into_inner();
+    assert_eq!(resp.bursts.len(), 8);
+
+    let reasons: Vec<&str> = resp.degraded.iter().map(|d| d.reason.as_str()).collect();
+    assert!(
+        reasons.contains(&"no_parent_burst"),
+        "degraded: {reasons:?}"
+    );
+    for pb in &resp.bursts {
+        let prov = pb.provenance.as_ref().expect("provenance present");
+        assert_eq!(
+            prov.generator,
+            synth_proto::v1::GeneratorKind::WeightedRandom as i32,
+            "every slot must fall back to weighted_random"
+        );
+    }
 
     server.shutdown().await;
 }

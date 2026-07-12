@@ -58,7 +58,24 @@ pub fn allocate_slots(
         .iter()
         .map(|&(_, w)| (w * k as f64).floor() as usize)
         .collect();
-    let assigned: usize = counts.iter().sum();
+    let mut assigned: usize = counts.iter().sum();
+
+    // Guard: normalized weights can sum to `1 + ulp`, which can make the
+    // floors themselves sum to more than `k` (previously only a
+    // `debug_assert` away from silent release-mode over-emission). Trim the
+    // largest counts first, tie-broken by the smallest index, until back to
+    // exactly `k` — deterministic and stream-position-neutral (this never
+    // consumes an RNG draw).
+    while assigned > k {
+        let mut idx = 0;
+        for i in 1..counts.len() {
+            if counts[i] > counts[idx] {
+                idx = i;
+            }
+        }
+        counts[idx] -= 1;
+        assigned -= 1;
+    }
 
     // 2. Remainder by sampling WITHOUT replacement over fractional parts.
     let mut fractions: Vec<f64> = norm
@@ -101,7 +118,12 @@ pub fn allocate_slots(
     for (&(kind, _), &count) in norm.iter().zip(&counts) {
         slots.extend(std::iter::repeat_n(kind, count));
     }
-    debug_assert_eq!(slots.len(), k);
+    assert_eq!(
+        slots.len(),
+        k,
+        "mixer must always materialize exactly k slots (floor-sum guard above keeps this true \
+         in release builds too, not just debug)"
+    );
     for i in (1..slots.len()).rev() {
         let u = next_unit_f64(rng);
         let j = ((u * (i + 1) as f64) as usize).min(i);

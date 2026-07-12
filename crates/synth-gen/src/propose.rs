@@ -65,7 +65,7 @@ pub fn propose(
         let (burst, rng_stream, macro_prov, mutation_prov) = match kind {
             GeneratorKind::WeightedRandom => (
                 weighted_random::generate(cfg, ctx, &root, slot, length_hint),
-                format!("slot/{slot}/wr"),
+                format!("slot/{slot}/wr/dir"),
                 None,
                 None,
             ),
@@ -76,11 +76,11 @@ pub fn propose(
                 );
                 let (burst, prov) =
                     macros::generate_macro_burst(cfg, ctx, &root, slot, length_hint, resolved);
-                (burst, format!("slot/{slot}/macro"), Some(prov), None)
+                (burst, format!("slot/{slot}/macro/pick"), Some(prov), None)
             }
             GeneratorKind::Mutation => {
                 let (burst, prov) = mutation::generate(cfg, ctx, &root, slot, &model);
-                (burst, format!("slot/{slot}/mut"), None, Some(prov))
+                (burst, format!("slot/{slot}/mut/ops"), None, Some(prov))
             }
             // The mixer only assigns generators whose availability the
             // caller vouched for; policy lands with M6.
@@ -119,7 +119,7 @@ fn generator_weights(
         None
     };
     let mutation_available = ctx.parent_burst.is_some() || !ctx.sibling_bursts.is_empty();
-    vec![
+    let mut weights = vec![
         GeneratorWeight {
             kind: GeneratorKind::WeightedRandom,
             weight: mix.weighted_random,
@@ -144,7 +144,29 @@ fn generator_weights(
             weight: mix.policy,
             unavailable: Some("policy_endpoint_down".to_owned()),
         },
-    ]
+    ];
+
+    // Wire-reachable fallback (INTEGRATION.md §7: unavailability must
+    // degrade, never error): a config can validly declare weight only on
+    // generators that end up unavailable for this context/pack state (e.g.
+    // `{weighted_random: 0, macro: 0, mutation: 1}` with no parent/siblings).
+    // If nothing is left available, force weighted-random on — it needs
+    // nothing beyond config, so it is the universal fallback the mixer can
+    // always allocate every slot to.
+    if !weights
+        .iter()
+        .any(|w| w.unavailable.is_none() && w.weight > 0.0)
+    {
+        if let Some(wr) = weights
+            .iter_mut()
+            .find(|w| w.kind == GeneratorKind::WeightedRandom)
+        {
+            wr.weight = 1.0;
+            wr.unavailable = None;
+        }
+    }
+
+    weights
 }
 
 #[cfg(test)]
@@ -208,6 +230,29 @@ mod tests {
         assert!(reasons.contains(&"no_macros_loaded"));
         assert!(reasons.contains(&"no_parent_burst"));
         assert_eq!(degraded.len(), 2);
+    }
+
+    /// Fix #1: a mutation-only mix with no parent/siblings must degrade to
+    /// weighted-random for every slot instead of panicking in
+    /// `allocate_slots`.
+    #[test]
+    fn all_unavailable_generators_fall_back_to_weighted_random() {
+        let cfg = cfg();
+        let overrides =
+            b"generator_mix: { weighted_random: 0.0, macro: 0.0, mutation: 1.0, policy: 0.0 }";
+        let merged = synth_core::config::deep_merge(&cfg, overrides).expect("merge overrides");
+        synth_core::config::validate(&merged).expect("merged config must be valid");
+
+        let (results, degraded) = propose(&merged, &ctx(), 8, 0, 123, None);
+        assert_eq!(results.len(), 8);
+        assert!(
+            results
+                .iter()
+                .all(|r| r.provenance.generator == GeneratorKind::WeightedRandom),
+            "every slot must fall back to weighted-random"
+        );
+        let reasons: Vec<&str> = degraded.iter().map(|d| d.reason.as_str()).collect();
+        assert!(reasons.contains(&"no_parent_burst"));
     }
 
     #[test]

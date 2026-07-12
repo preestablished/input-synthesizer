@@ -235,6 +235,22 @@ const INVALID_FIXTURES: &[(&str, &str)] = &[
         "event-grammar-missing-grammar-id.yaml",
         "model event_grammar requires grammar_id",
     ),
+    (
+        "op-probs-unknown-key.yaml",
+        "mutation.op_probs has unknown key \"bogus_op\"",
+    ),
+    (
+        "max-frames-too-large.yaml",
+        "burst_len.max_frames 300000 exceeds 216000",
+    ),
+    (
+        "ops-binomial-n-too-large.yaml",
+        "mutation.ops_binomial.n 100 must be <= 64",
+    ),
+    (
+        "generator-mix-nan.yaml",
+        "generator_mix values must be finite",
+    ),
 ];
 
 #[test]

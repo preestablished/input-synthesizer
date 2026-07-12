@@ -190,45 +190,68 @@ impl InputSynthesizer for SynthService {
             )));
         }
 
-        let (base_cfg, loaded_pack_ids) = {
+        // Single read-lock scope (fix #3): base config, loaded pack ids, and
+        // macro resolution must all observe the SAME snapshot of `state`. A
+        // second, separately-acquired lock (the previous shape: one read
+        // guard for base_cfg+pack_ids, dropped, then a fresh read guard for
+        // `macros::resolve`) leaves a window where a concurrent
+        // `LoadMacroPack` lands between the two locks — the bursts this
+        // request returns would then reflect a pack set the fingerprint
+        // (computed from `loaded_pack_ids`, captured under the first lock)
+        // doesn't describe. `deep_merge`+`validate` are pure and cheap, so
+        // running them inside the guard costs nothing and keeps everything
+        // — config, pack ids, and macro resolution — consistent with one
+        // snapshot.
+        let (effective_cfg, loaded_pack_ids, resolved_macros) = {
             let state = self.state.read().expect("state lock poisoned");
-            let Some((cfg, _doc_id)) = state.experiments.get(&req.experiment_id) else {
+            let Some((base_cfg, _doc_id)) = state.experiments.get(&req.experiment_id) else {
                 return Err(invalid_argument(format!(
                     "unknown experiment_id {:?}",
                     req.experiment_id
                 )));
             };
-            (cfg.clone(), state.pack_registry.pack_ids())
-        };
+            if base_cfg.model != synth_core::config::ModelKindCfg::Pad {
+                return Err(invalid_argument(format!(
+                    "model mismatch: experiment_id {:?} is configured for {:?}, not pad",
+                    req.experiment_id, base_cfg.model
+                )));
+            }
 
-        if base_cfg.model != synth_core::config::ModelKindCfg::Pad {
-            return Err(invalid_argument(format!(
-                "model mismatch: experiment_id {:?} is configured for {:?}, not pad",
-                req.experiment_id, base_cfg.model
-            )));
-        }
+            let effective_cfg =
+                synth_core::config::deep_merge(base_cfg, &req.config_overrides_yaml)
+                    .map_err(|e| invalid_argument(e.to_string()))?;
+            synth_core::config::validate(&effective_cfg)
+                .map_err(|errs| invalid_argument(join_errors(&errs)))?;
 
-        let effective_cfg = synth_core::config::deep_merge(&base_cfg, &req.config_overrides_yaml)
-            .map_err(|e| invalid_argument(e.to_string()))?;
-        synth_core::config::validate(&effective_cfg)
-            .map_err(|errs| invalid_argument(join_errors(&errs)))?;
+            let loaded_pack_ids = state.pack_registry.pack_ids();
 
-        // Resolve macro packs only when the effective config actually puts
-        // the macro generator in play (names >= 1 pack AND macro mix weight
-        // > 0); otherwise `None` preserves the existing degraded
-        // (`no_macros_loaded`) behavior. `PackNotLoaded` / `AlphabetMismatch`
-        // / `UnresolvableButton` all become FAILED_PRECONDITION naming the
-        // pack/button, since these are config-vs-server-state mismatches,
-        // not malformed requests.
-        let resolved_macros =
-            if !effective_cfg.macro_.packs.is_empty() && effective_cfg.generator_mix.macro_ > 0.0 {
-                let state = self.state.read().expect("state lock poisoned");
-                let resolved = macros::resolve(&state.pack_registry, &effective_cfg)
-                    .map_err(|e| Status::failed_precondition(e.to_string()))?;
-                Some(resolved)
+            // Fix #13 (API.md §5): pack presence/resolvability is checked
+            // UNCONDITIONALLY whenever the effective config names any packs
+            // at all — not only when the macro generator's mix weight is
+            // > 0. `PackNotLoaded` / `AlphabetMismatch` / `UnresolvableButton`
+            // all become FAILED_PRECONDITION naming the pack/button, since
+            // these are config-vs-server-state mismatches, not malformed
+            // requests. Only the *availability passed to `propose`* is
+            // still gated on macro mix weight > 0 (weight 0 keeps the
+            // existing `no_macros_loaded`-style degraded behavior moot,
+            // since the macro generator is never picked with weight 0
+            // anyway).
+            let resolved = if !effective_cfg.macro_.packs.is_empty() {
+                Some(
+                    macros::resolve(&state.pack_registry, &effective_cfg)
+                        .map_err(|e| Status::failed_precondition(e.to_string()))?,
+                )
             } else {
                 None
             };
+            let resolved_macros = if effective_cfg.generator_mix.macro_ > 0.0 {
+                resolved
+            } else {
+                None
+            };
+
+            (effective_cfg, loaded_pack_ids, resolved_macros)
+        };
 
         let node_context = req
             .node_context

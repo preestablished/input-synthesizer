@@ -50,6 +50,15 @@ pub struct Token {
 /// the versioned wire form `(BURST_FORMAT_VERSION, burst)`. Used for golden
 /// tests, dedup, and provenance `burst_id`s. Postcard over these ordered
 /// domain types is canonical (no maps involved).
+///
+/// Declined-change note: the hash input is exactly `(BURST_FORMAT_VERSION,
+/// domain burst)` — it deliberately excludes the alphabet name, even though
+/// API.md §1's prose wording differs slightly on this point. `burst_id`s are
+/// opaque to callers (never parsed, only compared/echoed), and this exact
+/// definition is pinned by every golden fixture under `testdata/golden/`; a
+/// review flagged the API.md wording mismatch, but changing the hash input
+/// now would invalidate every golden vector for no behavioral benefit, so
+/// this is documented here rather than changed.
 pub fn burst_hash(burst: &Burst) -> [u8; 32] {
     let encoded = postcard::to_allocvec(&(BURST_FORMAT_VERSION, burst))
         .expect("postcard encoding of a burst cannot fail");

@@ -49,7 +49,12 @@ pub struct MutationOpRec {
 pub struct MutationProvenance {
     /// The parent or sibling burst this mutant started from.
     pub base_burst_id: [u8; 32],
-    /// The splice donor, if any op used one.
+    /// The splice donor, if any op used one. When multiple `splice` ops
+    /// applied in the same mutant chose DIFFERENT donors, this field only
+    /// ever reflects the LAST one (the wire proto has a single field for
+    /// it) — the authoritative per-op donor is each splice `MutationOpRec`'s
+    /// own `donor_burst_id` arg; replay (`mutation::apply_ops`) always
+    /// resolves from there, never from this summary field.
     pub donor_burst_id: Option<[u8; 32]>,
     pub base_was_sibling: bool,
     /// In application order; the forced retry pass (if triggered) is

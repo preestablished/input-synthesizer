@@ -238,6 +238,17 @@ fn button_track(
     }
     let r = 1.0 / mu.max(1.0);
     let a = (duty / (mu.max(1.0) * (1.0 - duty))).min(1.0);
+    if a <= 0.0 {
+        // Fix #10: for a subnormal `duty`, `a` can underflow to exactly 0.0
+        // (rather than a tiny positive value) — feeding that into
+        // `geometric` as its per-trial success probability would either
+        // trip its `p > 0.0` debug_assert or, in release, silently flip
+        // semantics to "near-always-on" (since `geometric` treats `p <= 0`
+        // pathologically). Treat an underflowed rate as a button that is
+        // never pressed: a zero-rate chain draws nothing, consuming NO
+        // `rng` draws — the same convention as `duty <= 0.0` above.
+        return Vec::new();
+    }
     let mut on = match initial_on {
         Some(state) => state,
         None => next_unit_f64(rng) < duty,
@@ -441,4 +452,25 @@ fn compose_segments(
         });
     }
     segments
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use synth_core::rng::{fanout_root, stream};
+
+    /// Fix #10: a subnormal `duty` (smallest positive `f64`) underflows `a`
+    /// to exactly 0.0; `button_track` must treat that as "never pressed"
+    /// (empty intervals, no draws consumed) rather than panicking on
+    /// `geometric`'s `p > 0.0` debug_assert or flipping to near-always-on.
+    #[test]
+    fn denormal_duty_never_presses_and_draws_nothing() {
+        let root = fanout_root(1, "denormal-duty-test");
+        let mut rng = stream(&root, "test/denormal-duty");
+        let intervals = button_track(5e-324, 2.0, None, 1000, &mut rng);
+        assert!(
+            intervals.is_empty(),
+            "an underflowed rate must never press the button"
+        );
+    }
 }
