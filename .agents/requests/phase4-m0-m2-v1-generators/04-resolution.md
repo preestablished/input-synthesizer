@@ -159,10 +159,28 @@ documented in `types.rs` instead); line/column on post-parse semantic
 validation errors (structurally unavailable after deserialization — parse
 errors do carry them).
 
+## Review round 2 (`9353272`)
+
+Two further subagent reviews: an adversarial verification of every fix in
+`c9851c3` (9/10 confirmed outright; all gates re-run independently) and an
+ops-artifacts + claims audit (every checkable claim in this document and the
+evidence doc verified true against git/tests/docker/gh). Applied from their
+findings: a pack **name** now owns exactly one document (loading different
+content under an existing name replaces the old pack and removes its
+`pack_id` from the fingerprint input — closing the last load-order-dependent
+resolution path); API.md §3's "latest load wins" line corrected; bench CI
+job no longer hides compile errors behind `|| true`; builder image pinned to
+`rust:1.97-slim-bookworm`; `/opt/synth/packs` documented; golden-gate script
+header updated. The version-skew the audit flagged (smoke ran against the
+pre-review 0.1.0 image) was closed by rebuilding from `9353272` and
+re-running the 1,000-call smoke: 0 errors, 0 illegal bursts,
+`synth_version 0.2.0` (evidence doc, rerun section). Workspace at 106 tests
+/ 21 suites green.
+
 ## Verification pointers
 
-Clean checkout at `c9851c3` (final SHA incl. the review round): `cargo test
---workspace` (105 tests / 21
+Clean checkout at `9353272` (final SHA incl. both review rounds): `cargo test
+--workspace` (106 tests / 21
 suites; needs the sibling `control-plane` checkout at `proto-v0.2.0`);
 golden recorder modes are `--ignored` tests; the CI golden↔version rule's
 synthetic-violation reproduction is documented in
