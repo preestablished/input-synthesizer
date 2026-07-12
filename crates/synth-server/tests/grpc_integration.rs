@@ -89,6 +89,64 @@ fn load_request(bytes: Vec<u8>) -> LoadMacroPackRequest {
     }
 }
 
+fn console16_pack_bytes() -> Vec<u8> {
+    std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../packs/console16-movement-core.yaml"),
+    )
+    .expect("read console16-movement-core.yaml")
+}
+
+fn macro_pack_load_request(bytes: Vec<u8>) -> LoadMacroPackRequest {
+    LoadMacroPackRequest {
+        source: Some(load_macro_pack_request::Source::DocumentYaml(bytes)),
+        kind: DocumentKind::MacroPack as i32,
+    }
+}
+
+/// Build an experiment config document (string-edited from
+/// `testdata/config/valid/minimal.yaml`, same `console16-12btn-v1` alphabet
+/// as `packs/console16-movement-core.yaml`) with a given `experiment_id`,
+/// `macro.packs` list, and `generator_mix` weighted_random/macro split
+/// (mutation and policy pinned to 0 so the split is exact).
+fn macro_mix_config_bytes(
+    experiment_id: &str,
+    pack_names: &[&str],
+    weighted_random: f64,
+    macro_weight: f64,
+) -> Vec<u8> {
+    let base = String::from_utf8(minimal_config_bytes()).expect("minimal.yaml is utf8");
+    let base = base.replace(
+        "experiment_id: exp-test",
+        &format!("experiment_id: {experiment_id}"),
+    );
+    let packs_yaml: String = pack_names.iter().map(|p| format!("    - {p}\n")).collect();
+    format!(
+        "{base}\n\
+         generator_mix:\n\
+         \x20\x20weighted_random: {weighted_random}\n\
+         \x20\x20macro: {macro_weight}\n\
+         \x20\x20mutation: 0.0\n\
+         \x20\x20policy: 0.0\n\
+         macro:\n\
+         \x20\x20packs:\n\
+         {packs_yaml}"
+    )
+    .into_bytes()
+}
+
+fn pad_total_frames(burst: &synth_proto::v1::Burst) -> u64 {
+    match &burst.body {
+        Some(synth_proto::v1::burst::Body::Pad(pad)) => {
+            pad.segments.iter().map(|s| u64::from(s.hold_frames)).sum()
+        }
+        _ => panic!("expected a pad burst body"),
+    }
+}
+
+/// Macros in `console16-movement-core.yaml` with zero declared params.
+const NO_PARAM_MACROS: &[&str] = &["door-enter", "menu-confirm"];
+
 fn propose_request(experiment_id: &str, k: u32, node_id: &str, seed: u64) -> ProposeBurstsRequest {
     ProposeBurstsRequest {
         experiment_id: experiment_id.to_owned(),
@@ -361,22 +419,30 @@ async fn event_grammar_document_load_is_exact_message() {
 }
 
 #[tokio::test]
-async fn macro_pack_document_load_is_placeholder_error() {
+async fn macro_pack_document_load_is_invalid_argument_for_broken_yaml() {
     let server = TestServer::start().await;
     let mut client = server.client().await;
 
+    // Unterminated flow sequence: a parse error, not a validation error, so
+    // the message carries a `(line L, column C)` location (API.md §2.2).
+    let broken = b"version: 1\nkind: macro_pack\nname: bad-pack\nmodel: pad\n\
+                   button_alphabet: console16-12btn-v1\nsource: handwritten\n\
+                   macros:\n  - name: foo\n    steps: [\n"
+        .to_vec();
     let req = LoadMacroPackRequest {
-        source: Some(load_macro_pack_request::Source::DocumentYaml(
-            b"whatever".to_vec(),
-        )),
+        source: Some(load_macro_pack_request::Source::DocumentYaml(broken)),
         kind: DocumentKind::MacroPack as i32,
     };
     let status = client
         .load_macro_pack(req)
         .await
-        .expect_err("macro pack document load must fail in M1");
+        .expect_err("malformed macro pack document must fail");
     assert_eq!(status.code(), Code::InvalidArgument);
-    assert_eq!(status.message(), "macro packs land with M2");
+    assert!(
+        status.message().to_lowercase().contains("line"),
+        "message: {}",
+        status.message()
+    );
 
     server.shutdown().await;
 }
@@ -520,4 +586,248 @@ async fn statelessness_restart_reproduces_identical_bursts() {
         );
     }
     assert_eq!(resp1.config_fingerprint, resp2.config_fingerprint);
+}
+
+// ---------------------------------------------------------------------
+// M2: macro packs
+// ---------------------------------------------------------------------
+
+#[tokio::test]
+async fn load_console16_macro_pack_succeeds() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+
+    let resp = client
+        .load_macro_pack(macro_pack_load_request(console16_pack_bytes()))
+        .await
+        .expect("load console16-movement-core")
+        .into_inner();
+
+    assert_eq!(resp.items_loaded, 10);
+    assert_eq!(resp.document_id.len(), 64, "hex blake3-256 pack_id");
+    assert!(
+        resp.document_id.chars().all(|c| c.is_ascii_hexdigit()),
+        "document_id: {}",
+        resp.document_id
+    );
+    assert!(resp.warnings.is_empty());
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn identical_macro_pack_reload_is_a_noop_with_same_id() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+
+    let first = client
+        .load_macro_pack(macro_pack_load_request(console16_pack_bytes()))
+        .await
+        .expect("first load")
+        .into_inner();
+    let second = client
+        .load_macro_pack(macro_pack_load_request(console16_pack_bytes()))
+        .await
+        .expect("second load of identical pack")
+        .into_inner();
+
+    assert_eq!(first.document_id, second.document_id);
+    assert_eq!(second.items_loaded, 10);
+    assert!(second.warnings.is_empty());
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn propose_bursts_with_macro_mix_assigns_macro_slots() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+
+    let pack_resp = client
+        .load_macro_pack(macro_pack_load_request(console16_pack_bytes()))
+        .await
+        .expect("load console16-movement-core")
+        .into_inner();
+    let pack_id = pack_resp.document_id;
+
+    client
+        .load_macro_pack(load_request(macro_mix_config_bytes(
+            "exp-macro-mix",
+            &["console16-movement-core"],
+            0.5,
+            0.5,
+        )))
+        .await
+        .expect("load macro-mix config");
+
+    let resp = client
+        .propose_bursts(propose_request("exp-macro-mix", 32, "n", 0xC0FFEE))
+        .await
+        .expect("propose bursts with macro mix")
+        .into_inner();
+
+    assert_eq!(resp.bursts.len(), 32);
+
+    let reasons: Vec<&str> = resp.degraded.iter().map(|d| d.reason.as_str()).collect();
+    assert!(
+        !reasons.contains(&"no_macros_loaded"),
+        "degraded: {reasons:?}"
+    );
+
+    let mut macro_slots = 0;
+    for pb in &resp.bursts {
+        let prov = pb.provenance.as_ref().expect("provenance present");
+        let Some(mp) = prov.r#macro.as_ref() else {
+            continue;
+        };
+        macro_slots += 1;
+
+        assert_eq!(mp.pack_id, pack_id);
+        assert_eq!(
+            u64::from(mp.macro_frames) + u64::from(mp.tail_frames),
+            pad_total_frames(pb.burst.as_ref().expect("burst present"))
+        );
+        if !NO_PARAM_MACROS.contains(&mp.macro_name.as_str()) {
+            assert!(
+                !mp.param_bindings.is_empty(),
+                "macro {:?} declares params but bindings are empty",
+                mp.macro_name
+            );
+        }
+    }
+    // Stratified floors over an exact 0.5/0.5 split of k=32 with no
+    // remainder: exactly half the slots.
+    assert_eq!(macro_slots, 16);
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn propose_bursts_referencing_unloaded_pack_is_failed_precondition() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+
+    client
+        .load_macro_pack(load_request(macro_mix_config_bytes(
+            "exp-missing-pack",
+            &["never-loaded-pack"],
+            0.5,
+            0.5,
+        )))
+        .await
+        .expect("load config referencing an unloaded pack");
+
+    let status = client
+        .propose_bursts(propose_request("exp-missing-pack", 4, "n", 1))
+        .await
+        .expect_err("unloaded pack + macro weight > 0 must fail");
+    assert_eq!(status.code(), Code::FailedPrecondition);
+    assert!(
+        status.message().contains("never-loaded-pack"),
+        "message: {}",
+        status.message()
+    );
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn config_fingerprint_changes_after_loading_an_additional_pack() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+
+    client
+        .load_macro_pack(load_request(minimal_config_bytes()))
+        .await
+        .expect("load config");
+
+    let before = client
+        .propose_bursts(propose_request("exp-test", 4, "n", 1))
+        .await
+        .expect("propose before pack load")
+        .into_inner();
+
+    client
+        .load_macro_pack(macro_pack_load_request(console16_pack_bytes()))
+        .await
+        .expect("load console16-movement-core");
+
+    let after = client
+        .propose_bursts(propose_request("exp-test", 4, "n", 1))
+        .await
+        .expect("propose after pack load")
+        .into_inner();
+
+    // INTEGRATION §3 audit trail: the fingerprint reflects the loaded-pack
+    // set, not just the packs a given config references.
+    assert_ne!(before.config_fingerprint, after.config_fingerprint);
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn macro_mix_determinism_same_request_same_bursts() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+
+    client
+        .load_macro_pack(macro_pack_load_request(console16_pack_bytes()))
+        .await
+        .expect("load console16-movement-core");
+    client
+        .load_macro_pack(load_request(macro_mix_config_bytes(
+            "exp-macro-determinism",
+            &["console16-movement-core"],
+            0.5,
+            0.5,
+        )))
+        .await
+        .expect("load macro-mix config");
+
+    let req = || propose_request("exp-macro-determinism", 16, "n", 0xDEAD_BEEF);
+    let a = client
+        .propose_bursts(req())
+        .await
+        .expect("propose 1")
+        .into_inner();
+    let b = client
+        .propose_bursts(req())
+        .await
+        .expect("propose 2")
+        .into_inner();
+
+    let ids_a: Vec<Vec<u8>> = a
+        .bursts
+        .iter()
+        .map(|p| p.burst.as_ref().unwrap().burst_id.clone())
+        .collect();
+    let ids_b: Vec<Vec<u8>> = b
+        .bursts
+        .iter()
+        .map(|p| p.burst.as_ref().unwrap().burst_id.clone())
+        .collect();
+    assert_eq!(ids_a, ids_b);
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn health_loaded_packs_contains_loaded_pack_id() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+
+    let pack_resp = client
+        .load_macro_pack(macro_pack_load_request(console16_pack_bytes()))
+        .await
+        .expect("load console16-movement-core")
+        .into_inner();
+
+    let health = client
+        .health(HealthRequest {})
+        .await
+        .expect("health after pack load")
+        .into_inner();
+    assert!(health.loaded_packs.contains(&pack_resp.document_id));
+
+    server.shutdown().await;
 }

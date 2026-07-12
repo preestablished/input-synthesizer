@@ -68,17 +68,68 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     runtime.block_on(run(args))
 }
 
+/// One `--load` argument: either a plain path (kind sniffed from the
+/// document's `kind:` field) or `<path>:<kind>` with `kind` one of
+/// `experiment_config` / `macro_pack` (explicit, overrides sniffing).
+fn split_load_arg(arg: &str) -> (&str, Option<&str>) {
+    match arg.rsplit_once(':') {
+        Some((path, kind @ ("experiment_config" | "macro_pack"))) => (path, Some(kind)),
+        _ => (arg, None),
+    }
+}
+
+/// Sniff a loaded document's kind from its top-level `kind:` field. Returns
+/// the raw string (e.g. `"experiment_config"`, `"macro_pack"`) or empty if
+/// unparseable/absent — the caller treats anything unrecognized as fatal.
+fn sniff_kind(bytes: &[u8]) -> String {
+    let value: serde_yaml::Value = match serde_yaml::from_slice(bytes) {
+        Ok(v) => v,
+        Err(_) => return String::new(),
+    };
+    value
+        .get("kind")
+        .and_then(serde_yaml::Value::as_str)
+        .unwrap_or("")
+        .to_owned()
+}
+
 async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let service = Arc::new(SynthService::new());
 
-    // Standalone bring-up: M1 only supports loading experiment configs.
-    for path in &args.load_paths {
+    // Standalone bring-up: --load accepts experiment configs and macro
+    // packs, either `<path>:<kind>` (explicit) or a plain path (kind sniffed
+    // from the document's own `kind:` field).
+    for raw in &args.load_paths {
+        let (path, explicit_kind) = split_load_arg(raw);
         let bytes = std::fs::read(path)
             .unwrap_or_else(|e| panic!("failed to read --load document {path:?}: {e}"));
-        match service.load_experiment_config(&bytes) {
-            Ok(doc_id) => tracing::info!(path, document_id = %doc_id, "loaded experiment config"),
-            Err(msg) => {
-                eprintln!("failed to load {path:?}: {msg}");
+        let kind = match explicit_kind {
+            Some(k) => k.to_owned(),
+            None => sniff_kind(&bytes),
+        };
+        match kind.as_str() {
+            "experiment_config" => match service.load_experiment_config(&bytes) {
+                Ok(doc_id) => {
+                    tracing::info!(path, document_id = %doc_id, "loaded experiment config");
+                }
+                Err(msg) => {
+                    eprintln!("failed to load {path:?}: {msg}");
+                    std::process::exit(1);
+                }
+            },
+            "macro_pack" => match service.load_macro_pack_doc(&bytes) {
+                Ok(pack_id) => tracing::info!(path, pack_id = %pack_id, "loaded macro pack"),
+                Err(msg) => {
+                    eprintln!("failed to load {path:?}: {msg}");
+                    std::process::exit(1);
+                }
+            },
+            other => {
+                eprintln!(
+                    "failed to load {path:?}: unrecognized or missing document kind {other:?} \
+                     (expected \"experiment_config\" or \"macro_pack\"; use --load <path>:<kind> \
+                     to specify explicitly)"
+                );
                 std::process::exit(1);
             }
         }
