@@ -1,7 +1,7 @@
 # Resolution — Phase 4 M0–M2 v1 Generators (+M3)
 
 **Final state (read this first):** branch `phase4-v1-generators` HEAD;
-`cargo test --workspace` = 108 tests / 22 suites green; authoritative
+`cargo test --workspace` = 110 tests / 22 suites green; authoritative
 dual-arch CI evidence = the newest green run on the branch head (every
 round's commit has its own green run; run ids per round below). Since the
 original handback (`20c8e0d`), six review rounds landed fixes — all
@@ -260,10 +260,47 @@ The seam review's findings and fixes are folded into the offers section
 above (real raw-segment contract fixtures; casing correction; the
 validation-counter gap sharpened in open item 2).
 
+## Review round 7 (this branch's final SHA)
+
+A resource-exhaustion security review (calibrated to the trusted-network,
+runaway-buggy-caller threat model) and an empirical stress run against the
+live release binary (~1,800 calls: baseline matched the published ~1 ms
+p50; 8-way concurrency with interleaved reloads had zero errors and a
+stable fingerprint; 300 distinct document loads and a 500-call malformed
+flood left memory flat and Health sub-millisecond). Two real findings,
+both fixed:
+
+1. **Accidentally-quadratic burst composition.** `compose_segments`
+   rescanned the direction track and every button's interval list from the
+   start for each cut point — invisible at demo shapes (sub-ms) but ~80 s
+   for a single legal k=256 × 216000-frame request (measured). Rewritten
+   as a merge-style single pass with monotone cursors; outputs are
+   byte-identical (all golden suites pass unmodified) and the cap-edge
+   case measured ~18× faster (k=8: 2.29 s → 0.13 s, linear per slot).
+2. **Uncapped k × max_frames product.** The same request emitted a 45 MB
+   response — beyond tonic's default 4 MB client decode limit (the
+   orchestrator could never consume it). New per-request budget:
+   k × effective `burst_len.max_frames` ≤ 600,000 frames
+   (INVALID_ARGUMENT naming both knobs; ~5× the largest legitimate
+   shape and keeps worst-case responses under default client limits).
+
+Proportionate hardening from the same review: lock-poison recovery on all
+five state-guard sites (a panic under a guard previously wedged every
+future RPC including Health until restart; `State` has no cross-field
+invariant a lost insert could corrupt); runaway-context guards
+(sibling_bursts ≤ 64, total context segments ≤ 100k, both
+INVALID_ARGUMENT with clear messages); a `synth_experiments_loaded` gauge
+(documents accumulate for the process lifetime by design — dashboards,
+not caps, per the deployment model); README operational-notes section.
+Reviewed and NOT changed: no load caps / rate limiting (wrong for the
+one-orchestrator deployment shape), tonic's 4 MB decode default (adequate),
+serde_yaml's built-in alias-expansion cap (billion-laughs already
+defended upstream), the HTTP sidecar (30 s timeout suffices).
+
 ## Verification pointers
 
 Clean checkout at the HEAD of branch `phase4-v1-generators`: `cargo test
---workspace` (108 tests / 22
+--workspace` (110 tests / 22
 suites; needs the sibling `control-plane` checkout at `proto-v0.2.0`);
 golden recorder modes are `--ignored` tests; the CI golden↔version rule's
 synthetic-violation reproduction is documented in
