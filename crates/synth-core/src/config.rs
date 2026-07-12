@@ -11,18 +11,21 @@ use serde::{Deserialize, Serialize};
 // ---- 5.1 Button alphabet ---------------------------------------------------
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ButtonDef {
     pub name: String,
     pub bit: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ForbiddenMask {
     pub mask: Vec<String>,
     pub clear: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct DirectionsCfg {
     #[serde(default)]
     pub group: Vec<String>,
@@ -31,6 +34,7 @@ pub struct DirectionsCfg {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ButtonAlphabet {
     pub name: String,
     pub buttons: Vec<ButtonDef>,
@@ -124,6 +128,7 @@ pub enum LengthDistribution {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct BurstLen {
     pub distribution: LengthDistribution,
     pub mean_frames: u32,
@@ -147,6 +152,7 @@ impl Default for BurstLen {
 // ---- 5.4 Weighted-random priors ---------------------------------------------
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ButtonPrior {
     pub duty: f64,
     pub mean_hold_frames: f64,
@@ -163,6 +169,7 @@ impl Default for ButtonPrior {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct DirectionPriors {
     pub priors: IndexMap<String, f64>,
     pub mean_hold_frames: f64,
@@ -189,6 +196,7 @@ impl Default for DirectionPriors {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct WeightedRandomCfg {
     pub default_button: ButtonPrior,
     pub buttons: IndexMap<String, ButtonPrior>,
@@ -220,12 +228,14 @@ pub enum CmpOp {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PressedWithin {
     pub button: String,
     pub frames: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HistoryPredicate {
     pub pressed_within: PressedWithin,
 }
@@ -246,6 +256,7 @@ pub enum Predicate {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ContextRule {
     pub when: Predicate,
     #[serde(default)]
@@ -255,6 +266,7 @@ pub struct ContextRule {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Refractory {
     pub button: String,
     pub frames: u32,
@@ -265,6 +277,7 @@ pub struct Refractory {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct MacroCfg {
     pub packs: Vec<String>,
     pub pad_to_length: bool,
@@ -284,6 +297,7 @@ impl Default for MacroCfg {
 // ---- 5.7 Mutation ----------------------------------------------------------------
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OpsBinomial {
     pub n: u32,
     pub p: f64,
@@ -291,6 +305,7 @@ pub struct OpsBinomial {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct MutationCfg {
     pub donor_bias: f64,
     pub op_probs: IndexMap<String, f64>,
@@ -321,6 +336,7 @@ impl Default for MutationCfg {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct PolicyCfg {
     pub endpoint: String,
     pub model_id: String,
@@ -353,6 +369,7 @@ pub enum ModelKindCfg {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ExperimentConfig {
     pub version: u32,
     pub kind: String,

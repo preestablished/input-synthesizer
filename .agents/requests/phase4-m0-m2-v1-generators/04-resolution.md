@@ -1,7 +1,7 @@
 # Resolution — Phase 4 M0–M2 v1 Generators (+M3)
 
 **Final state (read this first):** branch `phase4-v1-generators` HEAD;
-`cargo test --workspace` = 121 tests / 22 suites green; authoritative
+`cargo test --workspace` = 122 tests / 22 suites green; authoritative
 dual-arch CI evidence = the newest green run on the branch (every push
 triggers one; a documentation-only commit like the final sign-off edits
 necessarily trails its own run by one — check `gh run list` for the
@@ -10,7 +10,7 @@ head's conclusion). Run ids: 29181386490 (`ab36bb4`), 29195495676
 (`6d41748`), 29199743592 (`ab1e528`), 29200931736 (`ee17797`),
 29202385874 (`e096e47`), 29204053262 (`498bc6c`), 29205449380
 (`6ebf5a5`) — all success on both arches. Since the original handback
-(`20c8e0d`), twelve review rounds landed fixes — all documented in the
+(`20c8e0d`), thirteen review rounds landed fixes — all documented in the
 round sections; per-round test counts in those sections are scoped to
 their round's SHA, not the final tree.
 
@@ -434,10 +434,33 @@ addendum (accumulated over rounds 7–11: finiteness, range bounds,
 op-prob key/value rules, per-request budgets) is now pinned at the end of
 API §5 so the doc's validation list matches the implementation.
 
+## Review round 13 (final)
+
+The last uncovered spec slices (ARCHITECTURE §2/§2.1/§6.2-step-1/§8 server
+shell + INTEGRATION §7's failure-mode table) were cold-diffed: **fully
+conforming, zero deviations** — every metric series, log field, port,
+statelessness test, and applicable failure-mode row matches; the policy
+and mining rows are explicit v1 stubs (hardcoded unavailable reason /
+unimplemented status), never faked success. Cold spec coverage of the
+entire owner documentation is now complete. Adversarial verification of
+round 12 reproduced the round-11 falsifier independently and confirmed
+the zero-fill fix, surfacing three follow-ups, all applied: (1) the
+`deny_unknown_fields` strictness I had added to one struct in passing is
+now DELIBERATE and schema-wide (17 structs; a typo'd key errors with the
+field named and the valid set listed, on fresh documents and overrides —
+regression-tested per section; the untagged `Predicate` enum is the one
+documented exception, serde cannot deny there); (2) the hardening
+addendum overclaimed "every float finite" while `policy.*` was
+unvalidated — `policy.temperature` finiteness now checked and the
+addendum carries the parse-only-in-v1 carve-out; (3) API §5.2's
+"absent key = 0" comment now states it applies to as-authored documents
+only (overrides deep-merge onto a fully-populated base — siblings are
+preserved, never zeroed).
+
 ## Verification pointers
 
 Clean checkout at the HEAD of branch `phase4-v1-generators`: `cargo test
---workspace` (121 tests / 22
+--workspace` (122 tests / 22
 suites; needs the sibling `control-plane` checkout at `proto-v0.2.0`);
 golden recorder modes are `--ignored` tests; the CI golden↔version rule's
 synthetic-violation reproduction is documented in

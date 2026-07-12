@@ -378,3 +378,37 @@ fn partial_generator_mix_zero_fills_absent_keys() {
     let cfg = parse(base.as_bytes()).expect("parse minimal");
     assert_eq!(cfg.generator_mix.macro_, 0.35);
 }
+
+/// Round-13: unknown keys are rejected everywhere in the experiment-config
+/// schema (deny_unknown_fields, schema-wide — a typo'd key must surface, not
+/// silently vanish), on fresh documents AND on override merges.
+#[test]
+fn unknown_keys_are_rejected_schema_wide() {
+    let base = std::fs::read_to_string(fixtures_dir().join("valid/minimal.yaml")).expect("read");
+    for (section, snippet) in [
+        ("top-level", "not_a_field: 1"),
+        ("burst_len", "burst_len: { mean_frame: 100 }"),
+        (
+            "weighted_random",
+            "weighted_random: { default_buton: { duty: 0.1, mean_hold_frames: 5 } }",
+        ),
+        ("mutation", "mutation: { donor_bais: 0.5 }"),
+        (
+            "generator_mix",
+            "generator_mix: { weighted_random: 1.0, macr: 0.5 }",
+        ),
+    ] {
+        let doc = format!("{base}\n{snippet}\n");
+        let err = parse(doc.as_bytes()).expect_err(section);
+        let msg = err.to_string();
+        assert!(
+            msg.contains("unknown field"),
+            "{section}: expected unknown-field error, got: {msg}"
+        );
+    }
+
+    // Override path surfaces the same protection.
+    let cfg = parse(base.as_bytes()).expect("parse minimal");
+    let err = deep_merge(&cfg, b"burst_len: { mean_frame: 100 }").expect_err("override typo");
+    assert!(err.to_string().contains("unknown field"), "{err}");
+}
