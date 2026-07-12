@@ -236,6 +236,62 @@ macros:
     assert!(registry.get(&v2_id).is_some());
 }
 
+/// A pack NAME may legally collide with a different pack's pack_id (the name
+/// regex admits 64-char lowercase hex). `get()` must resolve ids before
+/// names so such a collision cannot make resolution load-order-dependent
+/// (round-3 review PoC: two registries with identical pack_ids() sets
+/// resolved the same key to different packs under the old combined scan).
+#[test]
+fn pack_id_lookup_beats_name_collision_regardless_of_load_order() {
+    let pack_b_yaml = br#"
+version: 1
+kind: macro_pack
+name: pack-b
+model: pad
+button_alphabet: console16-12btn-v1
+source: handwritten
+macros:
+  - { name: tap-b, weight: 1.0, steps: [{ hold: [B], frames: 4 }] }
+"#;
+    let pack_b = macros::load_pack(pack_b_yaml).expect("load pack-b");
+    let b_id = pack_b.pack_id.clone();
+
+    // Pack A's declared NAME is literally pack B's pack_id.
+    let pack_a_yaml = format!(
+        r#"
+version: 1
+kind: macro_pack
+name: {b_id}
+model: pad
+button_alphabet: console16-12btn-v1
+source: handwritten
+macros:
+  - {{ name: tap-a, weight: 1.0, steps: [{{ hold: [A], frames: 4 }}] }}
+"#
+    );
+    let pack_a = macros::load_pack(pack_a_yaml.as_bytes()).expect("load pack-a");
+    let a_id = pack_a.pack_id.clone();
+    assert_ne!(a_id, b_id);
+
+    for order in [[&pack_a, &pack_b], [&pack_b, &pack_a]] {
+        let mut registry = PackRegistry::new();
+        registry.insert((*order[0]).clone());
+        registry.insert((*order[1]).clone());
+        // Same loaded set either way...
+        let mut ids = vec![a_id.clone(), b_id.clone()];
+        ids.sort_unstable();
+        assert_eq!(registry.pack_ids(), ids);
+        // ...and the collided key resolves to the ID owner in both orders.
+        assert_eq!(
+            registry.get(&b_id).unwrap().pack_id,
+            b_id,
+            "id lookup must beat a colliding pack name, independent of load order"
+        );
+        // The colliding pack stays reachable by its own id.
+        assert_eq!(registry.get(&a_id).unwrap().pack_id, a_id);
+    }
+}
+
 // ---------------------------------------------------------------------
 // Eligibility
 // ---------------------------------------------------------------------
