@@ -13,6 +13,12 @@
 //! - stream `slot/{s}/wr/btn/{bit}`: initial state `u` (skipped when
 //!   continuing history); then alternating geometric gap/hold draws, one `u`
 //!   each, starting with a gap when OFF and a hold when ON.
+//!
+//! [`generate_single_stream`] (used by the macro generator's tail padding,
+//! `synth_gen::macros`) draws the *same* direction-then-buttons sequence
+//! from one caller-supplied stream instead of per-label streams; it must
+//! never change `generate`'s own per-label draw order (verified by
+//! `golden_seed.rs`, which this refactor keeps byte-identical).
 
 use rand_chacha::ChaCha8Rng;
 use synth_core::config::{ExperimentConfig, LengthDistribution};
@@ -268,16 +274,69 @@ pub fn generate(
         }
     }
 
-    // Materialize change points and compose the segment list.
+    let segments = compose_segments(target, &dir_segments, &button_intervals);
+    Burst::Pad(PadBurst { segments })
+}
+
+/// Tail-padding variant for the macro generator (ARCHITECTURE.md §5.1 step
+/// 5, `synth_gen::macros` module doc, stream `slot/{s}/macro/tail`): draws
+/// everything from the single caller-supplied stream instead of per-label
+/// streams — direction track first, then each non-direction button in
+/// alphabet declaration order, sequentially on the same `rng`. Composition
+/// reuses [`compose_segments`], the same helper `generate` uses, so the only
+/// difference from `generate`'s per-label streams is where the draws come
+/// from, never the draw order or composition logic.
+pub fn generate_single_stream(
+    cfg: &ExperimentConfig,
+    ctx: &GenContext,
+    target: u64,
+    rng: &mut ChaCha8Rng,
+) -> Vec<PadSegment> {
+    let dir_segments = direction_track(cfg, ctx, target, rng);
+
+    let history_mask = ctx
+        .last_frame_mask()
+        .filter(|_| cfg.weighted_random.start_from_history.0);
+    let priors = effective_button_priors(cfg, ctx);
+    let dir_group_mask = cfg
+        .button_alphabet
+        .mask(&cfg.button_alphabet.directions.group)
+        .unwrap_or(0);
+
+    let mut button_intervals: Vec<(u16, Vec<(u64, u64)>)> = Vec::new();
+    for &(bit, duty, mu) in &priors {
+        let mask = 1u16 << bit;
+        if mask & dir_group_mask != 0 {
+            continue;
+        }
+        let initial_on = history_mask.map(|h| h & mask != 0);
+        let intervals = button_track(duty, mu, initial_on, target, rng);
+        if !intervals.is_empty() {
+            button_intervals.push((mask, intervals));
+        }
+    }
+
+    compose_segments(target, &dir_segments, &button_intervals)
+}
+
+/// Materialize change points across a direction track and per-button
+/// intervals over `[0, target)` into a run-length segment list. Draws no
+/// randomness itself — shared, order-preserving composition step for both
+/// `generate` and `generate_single_stream`.
+fn compose_segments(
+    target: u64,
+    dir_segments: &[DirSegment],
+    button_intervals: &[(u16, Vec<(u64, u64)>)],
+) -> Vec<PadSegment> {
     let mut cuts: Vec<u64> = vec![0, target];
     let mut acc = 0u64;
-    for seg in &dir_segments {
+    for seg in dir_segments {
         acc += seg.frames;
         if acc < target {
             cuts.push(acc);
         }
     }
-    for (_, intervals) in &button_intervals {
+    for (_, intervals) in button_intervals {
         for &(start, end) in intervals {
             if start < target {
                 cuts.push(start);
@@ -299,7 +358,7 @@ pub fn generate(
         let mut mask = 0u16;
         // Direction mask at `start`.
         let mut acc = 0u64;
-        for seg in &dir_segments {
+        for seg in dir_segments {
             let seg_end = acc + seg.frames;
             if start < seg_end {
                 mask |= seg.mask;
@@ -307,7 +366,7 @@ pub fn generate(
             }
             acc = seg_end;
         }
-        for (btn_mask, intervals) in &button_intervals {
+        for (btn_mask, intervals) in button_intervals {
             if intervals.iter().any(|&(s, e)| s <= start && start < e) {
                 mask |= btn_mask;
             }
@@ -317,6 +376,5 @@ pub fn generate(
             hold_frames: u32::try_from(end - start).unwrap_or(u32::MAX),
         });
     }
-
-    Burst::Pad(PadBurst { segments })
+    segments
 }

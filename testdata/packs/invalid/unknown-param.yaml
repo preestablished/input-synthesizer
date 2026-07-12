@@ -1,0 +1,11 @@
+version: 1
+kind: macro_pack
+name: unknown-param-pack
+model: pad
+button_alphabet: console16-12btn-v1
+source: handwritten
+macros:
+  - name: bad-frames-ref
+    weight: 1.0
+    steps:
+      - { hold: [A], frames: $does_not_exist }

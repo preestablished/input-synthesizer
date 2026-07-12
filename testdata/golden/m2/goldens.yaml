@@ -1,0 +1,134 @@
+synth_version: 0.1.0
+cases:
+- name: steps_macro_fixed_seed
+  seed: 1
+  length_hint: 100
+  chain_n: 1
+  pad_to_length: true
+  burst_id: 5319ca13d1893fd8accd5b9c9a8040b68b0fecb1482c3e2d97c1ac0f152af19a
+  pack_id: 19e6a58897e219fadff14444817f3ac5cf318e9196029f955aa2eaf5183728bc
+  macro_name: test-long-jump
+  param_bindings:
+  - - dir
+    - right
+  - - runup
+    - '55'
+  - - scale
+    - '1.2442584370139738'
+  macro_frames: 113
+  tail_frames: 0
+  chain_index: 0
+- name: token_steps_macro
+  seed: 2
+  length_hint: 100
+  chain_n: 1
+  pad_to_length: true
+  burst_id: 9b9d726567334052306a84e930985840a183f55b29c44cdbbb6ed5145c83ad47
+  pack_id: 19e6a58897e219fadff14444817f3ac5cf318e9196029f955aa2eaf5183728bc
+  macro_name: test-mined-combo
+  param_bindings:
+  - - dir
+    - right
+  macro_frames: 39
+  tail_frames: 17
+  chain_index: 0
+- name: mirror_left
+  seed: 4
+  length_hint: 100
+  chain_n: 1
+  pad_to_length: true
+  burst_id: 613a3fb4e24a41479da7b678946eb6ce5496ac5fdaa2545ca0d8a925a7c15e54
+  pack_id: 19e6a58897e219fadff14444817f3ac5cf318e9196029f955aa2eaf5183728bc
+  macro_name: test-long-jump
+  param_bindings:
+  - - dir
+    - left
+  - - runup
+    - '54'
+  - - scale
+    - '1.030742806751429'
+  macro_frames: 93
+  tail_frames: 0
+  chain_index: 0
+- name: mirror_right
+  seed: 2
+  length_hint: 100
+  chain_n: 1
+  pad_to_length: true
+  burst_id: 097477c3c6f1129269773fe901ee505c41392781297f988614bd80cf29e93be0
+  pack_id: 19e6a58897e219fadff14444817f3ac5cf318e9196029f955aa2eaf5183728bc
+  macro_name: test-long-jump
+  param_bindings:
+  - - dir
+    - right
+  - - runup
+    - '43'
+  - - scale
+    - '1.2496947295522691'
+  macro_frames: 99
+  tail_frames: 0
+  chain_index: 0
+- name: scale_case
+  seed: 5
+  length_hint: 200
+  chain_n: 1
+  pad_to_length: true
+  burst_id: dcb212fb377b4902a801c5ae5c09878a793769003d91c0032ba243d297583d17
+  pack_id: 19e6a58897e219fadff14444817f3ac5cf318e9196029f955aa2eaf5183728bc
+  macro_name: test-long-jump
+  param_bindings:
+  - - dir
+    - left
+  - - runup
+    - '67'
+  - - scale
+    - '1.0787188726002774'
+  macro_frames: 111
+  tail_frames: 203
+  chain_index: 0
+- name: chain_n2
+  seed: 7
+  length_hint: 300
+  chain_n: 2
+  pad_to_length: true
+  burst_id: fa496649b23b93a9a2da4804631ec5ae9a255f6c9ab4d3094d9ca9a2ce58b7e7
+  pack_id: 19e6a58897e219fadff14444817f3ac5cf318e9196029f955aa2eaf5183728bc
+  macro_name: test-mined-combo
+  param_bindings:
+  - - dir
+    - left
+  macro_frames: 141
+  tail_frames: 97
+  chain_index: 0
+- name: pad_to_length_false
+  seed: 1
+  length_hint: 1000
+  chain_n: 1
+  pad_to_length: false
+  burst_id: 5319ca13d1893fd8accd5b9c9a8040b68b0fecb1482c3e2d97c1ac0f152af19a
+  pack_id: 19e6a58897e219fadff14444817f3ac5cf318e9196029f955aa2eaf5183728bc
+  macro_name: test-long-jump
+  param_bindings:
+  - - dir
+    - right
+  - - runup
+    - '55'
+  - - scale
+    - '1.2442584370139738'
+  macro_frames: 113
+  tail_frames: 0
+  chain_index: 0
+- name: tail_case
+  seed: 2
+  length_hint: 1000
+  chain_n: 1
+  pad_to_length: true
+  burst_id: 255e8eb3886d04de985c78467424862c0bca9574d9df6de8534586158308f3fc
+  pack_id: 19e6a58897e219fadff14444817f3ac5cf318e9196029f955aa2eaf5183728bc
+  macro_name: test-mined-combo
+  param_bindings:
+  - - dir
+    - right
+  macro_frames: 39
+  tail_frames: 523
+  chain_index: 0

@@ -33,6 +33,7 @@ fn bench_propose() {
             LENGTH_HINT,
             0xB000_0000_0000_0000 ^ i as u64,
             Availability::default(),
+            None,
         );
     }
 
@@ -40,7 +41,15 @@ fn bench_propose() {
     for i in 0..ITERS {
         let seed = 0xB111_0000_0000_0000 ^ i as u64;
         let start = Instant::now();
-        let (results, _) = propose(&cfg, &ctx, K, LENGTH_HINT, seed, Availability::default());
+        let (results, _) = propose(
+            &cfg,
+            &ctx,
+            K,
+            LENGTH_HINT,
+            seed,
+            Availability::default(),
+            None,
+        );
         let elapsed = start.elapsed();
         std::hint::black_box(&results);
         samples.push(elapsed);

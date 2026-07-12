@@ -90,6 +90,7 @@ fn large_corpus() -> &'static Vec<SlotResult> {
             LARGE_LENGTH_HINT,
             LARGE_SEED,
             Availability::default(),
+            None,
         );
         assert!(degraded.is_empty());
         results
@@ -111,6 +112,7 @@ fn corpus() -> &'static Vec<SlotResult> {
             LENGTH_HINT,
             BASE_SEED,
             Availability::default(),
+            None,
         );
         assert!(
             degraded.is_empty(),
@@ -538,6 +540,7 @@ fn context_rule_boss_hp_shifts_y_duty() {
         LENGTH_HINT,
         BASE_SEED ^ 0xA1,
         Availability::default(),
+        None,
     );
     let (boss_results, _) = propose(
         &cfg,
@@ -546,6 +549,7 @@ fn context_rule_boss_hp_shifts_y_duty() {
         LENGTH_HINT,
         BASE_SEED ^ 0xA1,
         Availability::default(),
+        None,
     );
 
     let y_bit = common::bit(&cfg, "Y");
@@ -603,6 +607,7 @@ fn context_rule_start_refractory_suppresses_presses() {
         LENGTH_HINT,
         BASE_SEED ^ 0xB2,
         Availability::default(),
+        None,
     );
     let (cond_results, _) = propose(
         &cfg,
@@ -611,6 +616,7 @@ fn context_rule_start_refractory_suppresses_presses() {
         LENGTH_HINT,
         BASE_SEED ^ 0xB2,
         Availability::default(),
+        None,
     );
 
     let start_bit = common::bit(&cfg, "START");

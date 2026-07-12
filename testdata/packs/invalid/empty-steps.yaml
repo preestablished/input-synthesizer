@@ -1,0 +1,10 @@
+version: 1
+kind: macro_pack
+name: empty-steps-pack
+model: pad
+button_alphabet: console16-12btn-v1
+source: handwritten
+macros:
+  - name: no-steps
+    weight: 1.0
+    steps: []

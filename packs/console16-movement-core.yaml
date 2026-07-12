@@ -1,0 +1,120 @@
+# Demo macro pack (API.md §3, plan 04-m2-macro-packs.md §3): handwritten,
+# console16-12btn-v1 alphabet (API.md §5.1). Movement-heavy weights
+# (1.5-2.0), one utility macro at low weight (menu-confirm, 0.2). Most
+# macros are predicate-free so context-free requests keep a rich eligible
+# set; `long-jump` carries the API.md §3 eligibility example verbatim.
+version: 1
+kind: macro_pack
+name: console16-movement-core
+model: pad
+button_alphabet: console16-12btn-v1
+source: handwritten
+
+macros:
+  - name: long-jump
+    weight: 2.0
+    tags: [movement, jump]
+    params:
+      - { name: dir,    domain: { enum: [left, right] } }
+      - { name: runup,  domain: { int: { min: 20, max: 80 } } }
+      - { name: scale,  domain: { scale: { min: 0.8, max: 1.25 } } }
+    eligibility:
+      - { feature: on_ground, op: eq, value: 1 }
+    steps:
+      - { hold: [dir, B],    frames: $runup }
+      - { hold: [dir, B, A], frames: 24 }
+      - { hold: [dir],       frames: 12 }
+    mirror:
+      dir: { left: LEFT, right: RIGHT }
+
+  - name: charge-and-release
+    weight: 1.5
+    tags: [attack]
+    params:
+      - { name: charge, domain: { int: { min: 60, max: 240 } } }
+    steps:
+      - { hold: [Y],  frames: $charge }
+      - { hold: [],   frames: 4 }
+      - { hold: [Y],  frames: 2 }
+
+  - name: ladder-climb
+    weight: 1.5
+    tags: [movement, climb]
+    params:
+      - { name: dir,      domain: { enum: [up, down] } }
+      - { name: duration, domain: { int: { min: 20, max: 120 } } }
+    steps:
+      - { hold: [dir], frames: $duration }
+    mirror:
+      dir: { up: UP, down: DOWN }
+
+  - name: door-enter
+    weight: 1.5
+    tags: [movement, interact]
+    steps:
+      - { hold: [UP], frames: 6 }
+      - { hold: [],   frames: 30 }
+
+  - name: menu-confirm
+    weight: 0.2
+    tags: [menu]
+    steps:
+      - { hold: [START], frames: 4 }
+      - { hold: [],       frames: 20 }
+      - { hold: [A],      frames: 4 }
+
+  - name: dash-burst
+    weight: 1.8
+    tags: [movement, dash]
+    params:
+      - { name: dir, domain: { enum: [left, right] } }
+    steps:
+      - { hold: [dir, B], frames: 18 }
+    mirror:
+      dir: { left: LEFT, right: RIGHT }
+
+  - name: dash-jump
+    weight: 1.8
+    tags: [movement, dash, jump]
+    params:
+      - { name: dir, domain: { enum: [left, right] } }
+    steps:
+      - { hold: [dir, B],    frames: 10 }
+      - { hold: [dir, B, A], frames: 20 }
+      - { hold: [dir],       frames: 10 }
+    mirror:
+      dir: { left: LEFT, right: RIGHT }
+
+  - name: hop-chain
+    weight: 1.6
+    tags: [movement, jump]
+    params:
+      - { name: dir, domain: { enum: [left, right] } }
+    steps:
+      - { hold: [dir, A], frames: 6 }
+      - { hold: [dir],    frames: 8 }
+      - { hold: [dir, A], frames: 6 }
+      - { hold: [dir],    frames: 8 }
+      - { hold: [dir, A], frames: 6 }
+    mirror:
+      dir: { left: LEFT, right: RIGHT }
+
+  - name: turnaround-dash
+    weight: 1.6
+    tags: [movement, dash]
+    params:
+      - { name: dir, domain: { enum: [left, right] } }
+    steps:
+      - { hold: [dir],    frames: 14 }
+      - { hold: [],       frames: 4 }
+      - { hold: [dir, B], frames: 18 }
+    mirror:
+      dir: { left: LEFT, right: RIGHT }
+
+  - name: duck-slide
+    weight: 1.6
+    tags: [movement, duck]
+    params:
+      - { name: duration, domain: { int: { min: 10, max: 40 } } }
+    steps:
+      - { hold: [DOWN, B], frames: $duration }

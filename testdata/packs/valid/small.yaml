@@ -1,0 +1,37 @@
+# Small hand fixture: one `steps` macro (mirror + scale) and one
+# `token_steps` macro (mirror), for macro_suite.rs's load/instantiate tests.
+version: 1
+kind: macro_pack
+name: small-test-pack
+model: pad
+button_alphabet: console16-12btn-v1
+source: handwritten
+
+macros:
+  - name: test-long-jump
+    weight: 2.0
+    tags: [movement, jump]
+    params:
+      - { name: dir,   domain: { enum: [left, right] } }
+      - { name: runup, domain: { int: { min: 20, max: 80 } } }
+      - { name: scale, domain: { scale: { min: 0.8, max: 1.25 } } }
+    eligibility:
+      - { feature: on_ground, op: eq, value: 1 }
+    steps:
+      - { hold: [dir, B],    frames: $runup }
+      - { hold: [dir, B, A], frames: 24 }
+      - { hold: [dir],       frames: 12 }
+    mirror:
+      dir: { left: LEFT, right: RIGHT }
+
+  - name: test-mined-combo
+    weight: 1.0
+    tags: [mined]
+    params:
+      - { name: dir, domain: { enum: [left, right] } }
+    token_steps:
+      - { mask: [dir, B], dur_bucket: 4 }
+      - { mask: [dir, B, A], dur_bucket: 3 }
+      - { mask: [dir], dur_bucket: 2 }
+    mirror:
+      dir: { left: LEFT, right: RIGHT }

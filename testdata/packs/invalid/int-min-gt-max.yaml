@@ -1,0 +1,13 @@
+version: 1
+kind: macro_pack
+name: int-min-gt-max-pack
+model: pad
+button_alphabet: console16-12btn-v1
+source: handwritten
+macros:
+  - name: bad-int-range
+    weight: 1.0
+    params:
+      - { name: runup, domain: { int: { min: 80, max: 20 } } }
+    steps:
+      - { hold: [B], frames: $runup }
