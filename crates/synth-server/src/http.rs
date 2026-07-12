@@ -5,6 +5,7 @@
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use http_body_util::Full;
 use hyper::body::Bytes;
@@ -58,11 +59,20 @@ pub async fn serve(
                 let service = Arc::clone(&service);
                 tokio::spawn(async move {
                     let svc = service_fn(move |req| handle(req, Arc::clone(&service)));
-                    if let Err(err) = ConnBuilder::new(hyper_util::rt::TokioExecutor::new())
-                        .serve_connection(io, svc)
-                        .await
-                    {
-                        tracing::warn!(error = %err, "http connection error");
+                    let builder = ConnBuilder::new(hyper_util::rt::TokioExecutor::new());
+                    let conn = builder.serve_connection(io, svc);
+                    // Slow-loris guard: bound the whole connection lifetime
+                    // (including header read) so a client that opens a
+                    // connection and never finishes sending a request can't
+                    // hold a task/socket open indefinitely.
+                    match tokio::time::timeout(Duration::from_secs(30), conn).await {
+                        Ok(Ok(())) => {}
+                        Ok(Err(err)) => {
+                            tracing::warn!(error = %err, "http connection error");
+                        }
+                        Err(_) => {
+                            tracing::warn!("http connection timed out (slow-loris guard)");
+                        }
                     }
                 });
             }

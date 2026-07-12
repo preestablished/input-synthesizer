@@ -1,0 +1,14 @@
+version: 1
+kind: macro_pack
+name: int-domain-too-wide-pack
+model: pad
+button_alphabet: console16-12btn-v1
+source: handwritten
+
+macros:
+  - name: test-wide-int
+    weight: 1.0
+    params:
+      - { name: runup, domain: { int: { min: 0, max: 5000000000 } } }
+    steps:
+      - { hold: [A], frames: $runup }

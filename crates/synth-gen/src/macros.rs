@@ -331,7 +331,12 @@ fn validate_pack(doc: &RawPack) -> Result<Vec<MacroDef>, Vec<String>> {
         }
         seen_names.push(&m.name);
 
-        if m.weight <= 0.0 {
+        if !m.weight.is_finite() {
+            errors.push(format!(
+                "macro {:?}: weight {} must be finite",
+                m.name, m.weight
+            ));
+        } else if m.weight <= 0.0 {
             errors.push(format!(
                 "macro {:?}: weight {} must be > 0",
                 m.name, m.weight
@@ -362,9 +367,29 @@ fn validate_pack(doc: &RawPack) -> Result<Vec<MacroDef>, Vec<String>> {
                             "macro {:?}: param {:?} int domain min {} > max {}",
                             m.name, p.name, r.min, r.max
                         ));
+                    } else {
+                        // Fix #7: reject domains wide enough that the span
+                        // computation (`generate_macro_burst`'s int-param
+                        // sampling) would need more than a `u32`'s worth of
+                        // distinct values — an extreme pack-declared range
+                        // has no legitimate use case and only invites
+                        // overflow-adjacent arithmetic downstream.
+                        let span = i128::from(r.max) - i128::from(r.min) + 1;
+                        if span > (1i128 << 32) {
+                            errors.push(format!(
+                                "macro {:?}: param {:?} int domain span {} exceeds 2^32",
+                                m.name, p.name, span
+                            ));
+                        }
                     }
                 }
                 ParamDomain::Scale(r) => {
+                    if !r.min.is_finite() || !r.max.is_finite() {
+                        errors.push(format!(
+                            "macro {:?}: param {:?} scale domain must be finite (min {}, max {})",
+                            m.name, p.name, r.min, r.max
+                        ));
+                    }
                     if r.min > r.max {
                         errors.push(format!(
                             "macro {:?}: param {:?} scale domain min {} > max {}",
@@ -516,8 +541,11 @@ fn validate_pack(doc: &RawPack) -> Result<Vec<MacroDef>, Vec<String>> {
 
 #[derive(Default)]
 pub struct PackRegistry {
-    /// Insertion order = load order ("latest load wins" for cross-pack
-    /// duplicate macro names refers to this order).
+    /// Insertion order = load order. Used for `pack_ids()` and pack lookup
+    /// only — cross-pack duplicate-macro-name selection does NOT follow this
+    /// order (`resolve`'s doc comment): it follows `cfg.macro.packs`'
+    /// document order instead, so the winner is a function of the
+    /// fingerprinted config alone, never of incidental load order.
     packs: Vec<MacroPack>,
 }
 
@@ -556,14 +584,6 @@ impl PackRegistry {
         self.packs
             .iter()
             .find(|p| p.name == name_or_id || p.pack_id == name_or_id)
-    }
-
-    fn get_with_rank(&self, name_or_id: &str) -> Option<(&MacroPack, usize)> {
-        self.packs
-            .iter()
-            .enumerate()
-            .find(|(_, p)| p.name == name_or_id || p.pack_id == name_or_id)
-            .map(|(i, p)| (p, i))
     }
 
     /// Sorted pack ids, for fingerprinting (API.md §2.1/§7).
@@ -655,16 +675,25 @@ pub struct ResolvedMacros {
 
 /// Resolve `cfg.macro.packs` against a loaded registry into an eligible,
 /// bit-level candidate list: packs in `cfg.macro.packs` order, macros in
-/// pack order, cross-pack duplicate names deduped LATEST-load-wins (by the
-/// registry's insertion order, not `cfg.macro.packs` order).
+/// pack order, cross-pack duplicate names deduped by `cfg.macro.packs`'
+/// OWN order — the pack listed LATER in that list wins, regardless of load
+/// order. This is deliberate (fix for a cross-process determinism bug):
+/// the fingerprint hashes the *sorted* pack-id set, which is order-blind,
+/// so if the winner depended on registry insertion order ("latest load
+/// wins"), two processes that loaded the same packs in a different order
+/// could produce an identical fingerprint for different resolved macro
+/// sets. Keying the winner off `cfg.macro.packs`' own document order makes
+/// the winner a pure function of the fingerprinted config, never of
+/// incidental load order. Within one pack, macros keep pack order (no
+/// duplicate names within a single pack — rejected at load time).
 pub fn resolve(
     registry: &PackRegistry,
     cfg: &ExperimentConfig,
 ) -> Result<ResolvedMacros, ResolveError> {
-    let mut winners: IndexMap<String, (usize, &MacroDef, &MacroPack)> = IndexMap::new();
+    let mut winners: IndexMap<String, (&MacroDef, &MacroPack)> = IndexMap::new();
     for pack_name in &cfg.macro_.packs {
-        let (pack, rank) = registry
-            .get_with_rank(pack_name)
+        let pack = registry
+            .get(pack_name)
             .ok_or_else(|| ResolveError::PackNotLoaded(pack_name.clone()))?;
         if pack.button_alphabet != cfg.button_alphabet.name {
             return Err(ResolveError::AlphabetMismatch {
@@ -674,17 +703,14 @@ pub fn resolve(
             });
         }
         for m in &pack.macros {
-            match winners.get(m.name.as_str()) {
-                Some((existing_rank, _, _)) if *existing_rank >= rank => {}
-                _ => {
-                    winners.insert(m.name.clone(), (rank, m, pack));
-                }
-            }
+            // Forward iteration over `cfg.macro.packs`, unconditional
+            // overwrite: the pack listed later in the config always wins.
+            winners.insert(m.name.clone(), (m, pack));
         }
     }
 
     let mut items = Vec::with_capacity(winners.len());
-    for (_, (_, m, pack)) in winners {
+    for (_, (m, pack)) in winners {
         items.push(resolve_macro(m, pack, cfg)?);
     }
     Ok(ResolvedMacros { items })
@@ -905,7 +931,11 @@ pub fn generate_macro_burst(
                     ParamBinding::Enum(values[vi].clone())
                 }
                 ParamDomain::Int(r) => {
-                    let span = (r.max - r.min + 1) as f64;
+                    // Compute the span in i128 (fix #7): `r.max - r.min + 1`
+                    // as plain i64 arithmetic can overflow for extreme
+                    // pack-declared ranges (e.g. min = i64::MIN); i128 has
+                    // ample headroom for any i64-bounded range.
+                    let span = (i128::from(r.max) - i128::from(r.min) + 1) as f64;
                     let off = (u * span).floor() as i64;
                     let off = off.clamp(0, r.max - r.min);
                     ParamBinding::Int(r.min + off)
@@ -986,7 +1016,15 @@ pub fn generate_macro_burst(
     }
 
     let macro_frames: u64 = segments.iter().map(|s| u64::from(s.hold_frames)).sum();
-    let macro_frames_u32 = u32::try_from(macro_frames).unwrap_or(u32::MAX);
+    // Fix #15: when the instantiated chain itself exceeds
+    // `burst_len.max_frames`, the caller's `legalize` truncates the total to
+    // `max_frames` — clamp the reported span to match, so
+    // `macro_frames + tail_frames == <legalized total>` always holds. `target`
+    // (the length draw) is itself already clamped to `max_frames`, so when
+    // this clamp actually changes anything, `macro_frames >= target` already
+    // held and `tail_frames` below stays 0 either way.
+    let macro_frames_clamped = macro_frames.min(u64::from(cfg.burst_len.max_frames));
+    let macro_frames_u32 = u32::try_from(macro_frames_clamped).unwrap_or(u32::MAX);
 
     let tail_frames = if macro_frames < target && cfg.macro_.pad_to_length {
         let tail_target = target - macro_frames;

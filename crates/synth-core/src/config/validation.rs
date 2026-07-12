@@ -76,6 +76,10 @@ pub fn validate(cfg: &ExperimentConfig) -> Result<(), Vec<ConfigError>> {
         }
     }
     for (name, duty, mu) in priors {
+        if !duty.is_finite() || !mu.is_finite() {
+            fail!("button {name}: duty {duty} and mean_hold_frames {mu} must both be finite");
+            continue;
+        }
         if !(0.0..1.0).contains(&duty) {
             fail!("button {name}: duty {duty} must be in [0, 1)");
             continue;
@@ -95,16 +99,33 @@ pub fn validate(cfg: &ExperimentConfig) -> Result<(), Vec<ConfigError>> {
         }
     }
     let dir = &cfg.weighted_random.direction;
-    if !(0.0..1.0).contains(&dir.stickiness) {
+    if !dir.stickiness.is_finite() {
+        fail!("direction.stickiness {} must be finite", dir.stickiness);
+    } else if !(0.0..1.0).contains(&dir.stickiness) {
         fail!("direction.stickiness {} must be in [0, 1)", dir.stickiness);
     }
-    if dir.mean_hold_frames < 1.0 {
+    if !dir.mean_hold_frames.is_finite() {
+        fail!(
+            "direction.mean_hold_frames {} must be finite",
+            dir.mean_hold_frames
+        );
+    } else if dir.mean_hold_frames < 1.0 {
         fail!(
             "direction.mean_hold_frames {} must be >= 1",
             dir.mean_hold_frames
         );
     }
+    if !dir.diagonal_factor.is_finite() {
+        fail!(
+            "direction.diagonal_factor {} must be finite",
+            dir.diagonal_factor
+        );
+    }
     for (name, p) in &dir.priors {
+        if !p.is_finite() {
+            fail!("direction prior {name} value {p} must be finite");
+            continue;
+        }
         if *p < 0.0 {
             fail!("direction prior {name} is negative");
         }
@@ -116,6 +137,9 @@ pub fn validate(cfg: &ExperimentConfig) -> Result<(), Vec<ConfigError>> {
     // ---- generator mix ----
     let mix = &cfg.generator_mix;
     let weights = [mix.weighted_random, mix.macro_, mix.mutation, mix.policy];
+    if weights.iter().any(|w| !w.is_finite()) {
+        fail!("generator_mix values must be finite");
+    }
     if weights.iter().any(|w| *w < 0.0) {
         fail!("generator_mix values must be >= 0");
     }
@@ -135,7 +159,17 @@ pub fn validate(cfg: &ExperimentConfig) -> Result<(), Vec<ConfigError>> {
             bl.min_frames
         );
     }
-    if bl.sigma <= 0.0 {
+    // 216_000 frames = 1 hour at 60fps: an upper bound on the per-burst
+    // resource footprint (frame buffers, legalize/tokenize work).
+    if bl.max_frames > 216_000 {
+        fail!(
+            "burst_len.max_frames {} exceeds 216000 (1 hour at 60fps)",
+            bl.max_frames
+        );
+    }
+    if !bl.sigma.is_finite() {
+        fail!("burst_len.sigma {} must be finite", bl.sigma);
+    } else if bl.sigma <= 0.0 {
         fail!("burst_len.sigma {} must be > 0", bl.sigma);
     }
 
@@ -143,6 +177,11 @@ pub fn validate(cfg: &ExperimentConfig) -> Result<(), Vec<ConfigError>> {
     for rule in &cfg.context_rules {
         for name in rule.adjust_buttons.keys().filter(|n| !is_declared(n)) {
             fail!("context_rules.adjust_buttons references undeclared button {name}");
+        }
+        for (name, v) in &rule.adjust_buttons {
+            if !v.is_finite() {
+                fail!("context_rules.adjust_buttons[{name}] value {v} must be finite");
+            }
         }
         for name in rule.adjust_directions.keys() {
             if name != "NEUTRAL" && !alphabet.directions.group.contains(name) {
@@ -152,10 +191,22 @@ pub fn validate(cfg: &ExperimentConfig) -> Result<(), Vec<ConfigError>> {
                 );
             }
         }
+        for (name, v) in &rule.adjust_directions {
+            if !v.is_finite() {
+                fail!("context_rules.adjust_directions[{name}] value {v} must be finite");
+            }
+        }
     }
     for r in &cfg.refractory {
         if !is_declared(&r.button) {
             fail!("refractory references undeclared button {}", r.button);
+        }
+        if !r.logit_penalty.is_finite() {
+            fail!(
+                "refractory {}: logit_penalty {} must be finite",
+                r.button,
+                r.logit_penalty
+            );
         }
     }
 
@@ -163,26 +214,66 @@ pub fn validate(cfg: &ExperimentConfig) -> Result<(), Vec<ConfigError>> {
     if !(1..=4).contains(&cfg.macro_.chain_n) {
         fail!("macro.chain_n {} must be in 1..=4", cfg.macro_.chain_n);
     }
+    const VALID_MUTATION_OPS: &[&str] = &[
+        "perturb_timing",
+        "extend",
+        "flip_button",
+        "splice",
+        "truncate",
+        "duplicate_segment",
+        "swap_adjacent",
+    ];
+    for key in cfg.mutation.op_probs.keys() {
+        if !VALID_MUTATION_OPS.contains(&key.as_str()) {
+            fail!("mutation.op_probs has unknown key {key:?}");
+        }
+    }
+    for (key, v) in &cfg.mutation.op_probs {
+        if !v.is_finite() {
+            fail!("mutation.op_probs[{key:?}] value {v} must be finite");
+        }
+    }
     let prob_sum: f64 = cfg.mutation.op_probs.values().sum();
     if (prob_sum - 1.0).abs() > 1e-9 {
         fail!("mutation.op_probs sums to {prob_sum} (must be 1 ± 1e-9)");
     }
-    if !(0.0..=1.0).contains(&cfg.mutation.donor_bias) {
+    if !cfg.mutation.donor_bias.is_finite() {
+        fail!(
+            "mutation.donor_bias {} must be finite",
+            cfg.mutation.donor_bias
+        );
+    } else if !(0.0..=1.0).contains(&cfg.mutation.donor_bias) {
         fail!(
             "mutation.donor_bias {} must be in [0, 1]",
             cfg.mutation.donor_bias
         );
     }
-    if cfg.mutation.timing_sigma <= 0.0 {
+    if !cfg.mutation.timing_sigma.is_finite() {
+        fail!(
+            "mutation.timing_sigma {} must be finite",
+            cfg.mutation.timing_sigma
+        );
+    } else if cfg.mutation.timing_sigma <= 0.0 {
         fail!(
             "mutation.timing_sigma {} must be > 0",
             cfg.mutation.timing_sigma
         );
     }
-    if !(0.0..=1.0).contains(&cfg.mutation.ops_binomial.p) {
+    if !cfg.mutation.ops_binomial.p.is_finite() {
+        fail!(
+            "mutation.ops_binomial.p {} must be finite",
+            cfg.mutation.ops_binomial.p
+        );
+    } else if !(0.0..=1.0).contains(&cfg.mutation.ops_binomial.p) {
         fail!(
             "mutation.ops_binomial.p {} must be in [0, 1]",
             cfg.mutation.ops_binomial.p
+        );
+    }
+    if cfg.mutation.ops_binomial.n > 64 {
+        fail!(
+            "mutation.ops_binomial.n {} must be <= 64",
+            cfg.mutation.ops_binomial.n
         );
     }
 

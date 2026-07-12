@@ -765,11 +765,54 @@ fn apply_named_op(
     }
 }
 
+/// Parse a lowercase-hex `burst_id` (as recorded by `sample_splice_or_fallback`'s
+/// `donor_burst_id` arg) back into its 32 raw bytes.
+fn parse_hex_32(s: &str) -> [u8; 32] {
+    assert_eq!(
+        s.len(),
+        64,
+        "recorded donor_burst_id must be 64 hex chars (32 bytes), got {s:?}"
+    );
+    let mut out = [0u8; 32];
+    for (i, chunk) in out.iter_mut().enumerate() {
+        *chunk = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16)
+            .expect("recorded donor_burst_id must be valid hex");
+    }
+    out
+}
+
+/// Resolve one recorded splice's own donor from `donors` (fix #5: each
+/// splice op records its own `donor_burst_id`; two splices in one mutant can
+/// legitimately pick different donors, so replay must look each one up
+/// individually rather than reusing a single caller-supplied donor for
+/// every splice). Panics with a clear message if the recorded id isn't
+/// present — `apply_ops` is test-side replay-only API that must only ever
+/// see args recorded by `generate` for the exact donor set it drew from
+/// (see the doc note on `apply_ops` itself).
+fn resolve_donor<'a>(
+    donors: &[(&'a [u8; 32], &'a PadBurst)],
+    donor_id_hex: &str,
+) -> &'a [PadSegment] {
+    let id = parse_hex_32(donor_id_hex);
+    donors
+        .iter()
+        .find(|(donor_id, _)| **donor_id == id)
+        .map(|(_, burst)| burst.segments.as_slice())
+        .unwrap_or_else(|| {
+            panic!(
+                "apply_ops: recorded donor_burst_id {donor_id_hex} not found among the \
+                 {} donor(s) supplied to replay — donors must include every sibling the \
+                 original `generate` call had available",
+                donors.len()
+            )
+        })
+}
+
 fn apply_recorded_op(
     cfg: &ExperimentConfig,
     op: &MutationOpRec,
     segments: &[PadSegment],
-    donor: Option<&PadBurst>,
+    donors: &[(&[u8; 32], &PadBurst)],
     dir_group_mask: u16,
 ) -> Vec<PadSegment> {
     let get = |key: &str| -> &str {
@@ -796,7 +839,9 @@ fn apply_recorded_op(
         "splice" => {
             let i: usize = get("i").parse().unwrap_or(0);
             let j: usize = get("j").parse().unwrap_or(0);
-            let donor_segments: &[PadSegment] = donor.map_or(&[], |d| d.segments.as_slice());
+            // This op's OWN recorded donor (fix #5) — never a single donor
+            // shared across every splice in the mutant.
+            let donor_segments = resolve_donor(donors, get("donor_burst_id"));
             apply_splice(segments, donor_segments, i, j)
         }
         "truncate" => {
@@ -916,19 +961,35 @@ pub fn generate(
     )
 }
 
-/// Replay a recorded op list against `base` (and `donor`, if any op needs
-/// one) with zero RNG use, reproducing the mutant `generate` emitted
-/// byte-for-byte — this is what makes the provenance-replay accept test
-/// meaningful (`06-m3-mutation-stretch.md` Accept list). Mirrors
+/// Replay a recorded op list against `base` (and `donors`, for any splice
+/// ops — fix #5: each splice records its OWN `donor_burst_id`, so `donors`
+/// must include every sibling burst that was available to the original
+/// `generate` call, not just the one referenced by
+/// `MutationProvenance.donor_burst_id`, which only ever reflects the LAST
+/// splice's donor: proto has one field for it, but per-op `args` are
+/// authoritative and this function always resolves each splice from its own
+/// recorded arg) with zero RNG use, reproducing the mutant `generate`
+/// emitted byte-for-byte — this is what makes the provenance-replay accept
+/// test meaningful (`06-m3-mutation-stretch.md` Accept list). Mirrors
 /// `generate`'s own structure: apply the main ops, legalize once, then (iff
 /// `ops` carries a trailing forced-retry `perturb_timing`) apply it and
 /// legalize again.
+///
+/// Safety (fix #12): this function must only ever be called with `ops`/args
+/// that were recorded by a `generate` call for the exact `base`/`donors`
+/// pairing it drew from — every parser above (`parse_usize_csv`,
+/// `parse_f64_bits_csv`, `parse_appended`, `parse_repeats`, `parse_run`,
+/// `parse_hex_32`) panics on malformed input by design, and `resolve_donor`
+/// panics if a recorded donor id isn't in `donors`. `apply_ops` is
+/// replay-only, test-side API (its only caller today is
+/// `mutation_suite.rs`'s provenance-replay test); it must never be fed
+/// untrusted wire data directly.
 pub fn apply_ops(
     cfg: &ExperimentConfig,
     model: &PadModel,
     base: &PadBurst,
     ops: &[MutationOpRec],
-    donor: Option<&PadBurst>,
+    donors: &[(&[u8; 32], &PadBurst)],
 ) -> Burst {
     let dir_group_mask = cfg
         .button_alphabet
@@ -938,7 +999,7 @@ pub fn apply_ops(
 
     let mut segments = base.segments.clone();
     for op in main_ops {
-        segments = apply_recorded_op(cfg, op, &segments, donor, dir_group_mask);
+        segments = apply_recorded_op(cfg, op, &segments, donors, dir_group_mask);
     }
     let legalized = model.legalize(Burst::Pad(PadBurst { segments }));
     let Burst::Pad(PadBurst { mut segments }) = legalized else {
@@ -946,7 +1007,7 @@ pub fn apply_ops(
     };
 
     if let Some(retry) = retry_op {
-        segments = apply_recorded_op(cfg, retry, &segments, donor, dir_group_mask);
+        segments = apply_recorded_op(cfg, retry, &segments, donors, dir_group_mask);
         let relegalized = model.legalize(Burst::Pad(PadBurst { segments }));
         let Burst::Pad(PadBurst { segments: s2 }) = relegalized else {
             unreachable!("PadModel::legalize always returns Burst::Pad")

@@ -63,6 +63,8 @@ fn invalid_fixtures_fail_with_expected_substrings() {
         ("duplicate-macro-name.yaml", "duplicate macro name"),
         ("empty-steps.yaml", "steps must be non-empty"),
         ("event-grammar-model.yaml", "event_grammar"),
+        ("int-domain-too-wide.yaml", "exceeds 2^32"),
+        ("weight-nan.yaml", "must be finite"),
     ];
     for (file, expect_substr) in cases {
         let bytes = read(testdata_dir().join("invalid").join(file));
@@ -118,10 +120,16 @@ fn different_bytes_load_to_different_pack_ids() {
 // Registry: shadow warnings, latest-load-wins
 // ---------------------------------------------------------------------
 
-/// Two packs, both declaring a macro named `shared-name`; the pack loaded
-/// second must win at selection time, and `insert` must warn about it.
+/// Two packs, both declaring a macro named `shared-name`, loaded pack-a THEN
+/// pack-b (load order: a, b). Fix #4: cross-pack duplicate-name selection
+/// must follow `cfg.macro.packs`' own list order, not load order — so listing
+/// them `[pack-b, pack-a]` (the reverse of load order) must pick pack-a, and
+/// `[pack-a, pack-b]` must pick pack-b. This is what keeps the winner a pure
+/// function of the fingerprinted config: two processes that loaded the same
+/// packs in different orders must still resolve identically for the same
+/// `cfg.macro.packs`.
 #[test]
-fn cross_pack_duplicate_name_warns_and_latest_wins() {
+fn cross_pack_duplicate_name_dedup_follows_macro_packs_list_order() {
     let pack_a_yaml = br#"
 version: 1
 kind: macro_pack
@@ -146,6 +154,7 @@ macros:
     let pack_b = macros::load_pack(pack_b_yaml).expect("load pack-b");
 
     let mut registry = PackRegistry::new();
+    // Load order: pack-a first, pack-b second.
     let warnings_a = registry.insert(pack_a);
     assert!(warnings_a.is_empty(), "first pack never shadows anything");
     let warnings_b = registry.insert(pack_b);
@@ -153,14 +162,31 @@ macros:
     assert!(warnings_b[0].contains("shared-name"));
     assert!(warnings_b[0].contains("shadows"));
 
-    let cfg = common::macro_cfg(&["pack-a", "pack-b"]);
-    let resolved = macros::resolve(&registry, &cfg).expect("resolve");
+    // cfg.macro.packs lists pack-b BEFORE pack-a — the OPPOSITE of load
+    // order. The list-order winner must be pack-a (listed last), not pack-b
+    // (loaded last).
+    let cfg_b_then_a = common::macro_cfg(&["pack-b", "pack-a"]);
+    let resolved = macros::resolve(&registry, &cfg_b_then_a).expect("resolve");
     let winner = resolved
         .items
         .iter()
         .find(|m| m.name == "shared-name")
         .expect("shared-name present exactly once");
-    assert_eq!(winner.pack_id, registry.get("pack-b").unwrap().pack_id);
+    assert_eq!(
+        winner.pack_id,
+        registry.get("pack-a").unwrap().pack_id,
+        "list order must decide (pack-a listed last), not load order (pack-a loaded first)"
+    );
+
+    // Reversing the list order must reverse the winner too.
+    let cfg_a_then_b = common::macro_cfg(&["pack-a", "pack-b"]);
+    let resolved2 = macros::resolve(&registry, &cfg_a_then_b).expect("resolve");
+    let winner2 = resolved2
+        .items
+        .iter()
+        .find(|m| m.name == "shared-name")
+        .expect("shared-name present exactly once");
+    assert_eq!(winner2.pack_id, registry.get("pack-b").unwrap().pack_id);
 }
 
 // ---------------------------------------------------------------------
@@ -412,6 +438,68 @@ generator_mix: { weighted_random: 0.5, macro: 0.5, mutation: 0.0, policy: 0.0 }
         assert_eq!(a.provenance, b.provenance);
     }
     assert_eq!(degraded_a, degraded_b);
+}
+
+// ---------------------------------------------------------------------
+// Fix #15: macro_frames provenance clamp
+// ---------------------------------------------------------------------
+
+/// A tiny `max_frames` forces `test-long-jump`'s instantiated chain (always
+/// well over 50 frames: `runup` alone is `int { min: 20, max: 80 }`, plus two
+/// more fixed-frame steps) to exceed it, so `legalize` truncates the burst.
+/// Provenance's `macro_frames + tail_frames` must equal the LEGALIZED total,
+/// not the pre-truncation instantiated span.
+#[test]
+fn macro_frames_provenance_clamped_when_chain_exceeds_max_frames() {
+    use synth_core::model::InputModel;
+
+    let bytes = read(testdata_dir().join("valid/small.yaml"));
+    let pack = macros::load_pack(&bytes).expect("load");
+    let mut registry = PackRegistry::new();
+    registry.insert(pack);
+
+    let base = common::macro_cfg(&["small-test-pack"]);
+    let overrides = br#"
+burst_len: { min_frames: 1, max_frames: 10 }
+"#;
+    let cfg = synth_core::config::deep_merge(&base, overrides).expect("merge");
+    synth_core::config::validate(&cfg).expect("valid");
+    let resolved = macros::resolve(&registry, &cfg).expect("resolve");
+
+    let ctx = GenContext {
+        node_id: "clamp-test".to_owned(),
+        ram_features: vec![("on_ground".to_owned(), 1.0)],
+        ..Default::default()
+    };
+    let model = synth_pad::PadModel::new(
+        &cfg.button_alphabet,
+        cfg.burst_len.min_frames,
+        cfg.burst_len.max_frames,
+    );
+
+    let mut found = false;
+    for seed in 0u64..32 {
+        let root = synth_core::rng::fanout_root(seed, &ctx.node_id);
+        let (burst, prov) = macros::generate_macro_burst(&cfg, &ctx, &root, 0, 300, &resolved);
+        let unlegalized_total = instantiated_total_frames(&burst);
+        if unlegalized_total <= u64::from(cfg.burst_len.max_frames) {
+            continue;
+        }
+        let legalized = model.legalize(burst);
+        let legalized_total = instantiated_total_frames(&legalized);
+        assert_eq!(legalized_total, u64::from(cfg.burst_len.max_frames));
+        assert_eq!(
+            u64::from(prov.macro_frames) + u64::from(prov.tail_frames),
+            legalized_total,
+            "seed {seed}: clamped macro_frames + tail_frames must equal the legalized total"
+        );
+        found = true;
+        break;
+    }
+    assert!(
+        found,
+        "no seed in 0..32 produced a chain exceeding max_frames=10 — widen the search"
+    );
 }
 
 // ---------------------------------------------------------------------

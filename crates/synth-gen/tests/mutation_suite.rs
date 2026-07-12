@@ -381,18 +381,108 @@ fn provenance_replay_reproduces_mutant_exactly() {
                 .unwrap_or_else(|| panic!("seed {seed}: base_burst_id not resolvable from ctx"))
                 .segments,
         };
-        let donor_pad = prov.donor_burst_id.map(|id| PadBurst {
-            segments: resolve_by_id(&ctx, id)
-                .unwrap_or_else(|| panic!("seed {seed}: donor_burst_id not resolvable from ctx"))
-                .segments,
-        });
+        // Fix #5: pass every sibling burst as a potential donor (not just
+        // the one `MutationProvenance.donor_burst_id` happens to record —
+        // that field only reflects the LAST splice's donor), since replay
+        // must resolve each splice op from its own recorded arg.
+        let sibling_pads: Vec<([u8; 32], PadBurst)> = ctx
+            .sibling_bursts
+            .iter()
+            .map(|s| (s.burst.burst_id, s.burst.pad.clone()))
+            .collect();
+        let donors: Vec<(&[u8; 32], &PadBurst)> =
+            sibling_pads.iter().map(|(id, pad)| (id, pad)).collect();
 
-        let replayed = mutation::apply_ops(&cfg, &model, &base_pad, &prov.ops, donor_pad.as_ref());
+        let replayed = mutation::apply_ops(&cfg, &model, &base_pad, &prov.ops, &donors);
         assert_eq!(
             replayed, burst,
             "seed {seed}: replay did not reproduce the mutant exactly"
         );
     }
+}
+
+/// Fix #5 directed regression: force exactly 2 sampled ops via a degenerate
+/// `ops_binomial` (`n: 1, p: 1.0` ⇒ `B = 1` ⇒ `n_ops = 1 + min(1, 3) = 2`,
+/// deterministically, no seed search needed for op COUNT) and pin
+/// `op_probs` so both are `splice`. With >= 2 siblings of very different
+/// weight, search a small seed range for a case where the two splice ops
+/// actually pick DIFFERENT donors (the scenario the single-donor bug
+/// silently mishandled), then assert replay reproduces the mutant exactly.
+#[test]
+fn multi_splice_replay_resolves_each_ops_own_donor() {
+    let base = common::mutation_cfg_forced_op("splice");
+    let overrides = br#"
+mutation:
+  ops_binomial: { n: 1, p: 1.0 }
+"#;
+    let cfg = synth_core::config::deep_merge(&base, overrides).expect("merge");
+    synth_core::config::validate(&cfg).expect("valid");
+    let model = model_for(&cfg);
+
+    let parent = common::mutation_base_pad();
+    let siblings = vec![
+        (common::mutation_sibling_pad_a(), 1.0),
+        (common::mutation_sibling_pad_b(), 50.0),
+    ];
+
+    let mut found = false;
+    for seed in 0u64..500 {
+        let ctx = common::ctx_with_parent_and_siblings(
+            "multi-splice-node",
+            parent.clone(),
+            siblings.clone(),
+        );
+        let root = fanout_root(seed, &ctx.node_id);
+        let (burst, prov) = mutation::generate(&cfg, &ctx, &root, 0, &model);
+
+        assert!(
+            prov.ops.len() == 2
+                || (prov.ops.len() == 3 && prov.ops[2].args.iter().any(|(k, _)| k == "retry")),
+            "seed {seed}: forced ops_binomial must yield exactly 2 sampled ops (plus an \
+             optional forced retry), got {}",
+            prov.ops.len()
+        );
+        let splice_ops: Vec<_> = prov.ops.iter().filter(|o| o.op == "splice").collect();
+        if splice_ops.len() < 2 {
+            continue;
+        }
+        let donor_of = |o: &synth_gen::provenance::MutationOpRec| {
+            o.args
+                .iter()
+                .find(|(k, _)| k == "donor_burst_id")
+                .map(|(_, v)| v.clone())
+        };
+        let d0 = donor_of(splice_ops[0]);
+        let d1 = donor_of(splice_ops[1]);
+        if d0 == d1 {
+            continue;
+        }
+
+        let base_pad = PadBurst {
+            segments: resolve_by_id(&ctx, prov.base_burst_id)
+                .unwrap_or_else(|| panic!("seed {seed}: base_burst_id not resolvable"))
+                .segments,
+        };
+        let sibling_pads: Vec<([u8; 32], PadBurst)> = ctx
+            .sibling_bursts
+            .iter()
+            .map(|s| (s.burst.burst_id, s.burst.pad.clone()))
+            .collect();
+        let donors: Vec<(&[u8; 32], &PadBurst)> =
+            sibling_pads.iter().map(|(id, pad)| (id, pad)).collect();
+        let replayed = mutation::apply_ops(&cfg, &model, &base_pad, &prov.ops, &donors);
+        assert_eq!(
+            replayed, burst,
+            "seed {seed}: replay with two distinct-donor splice ops did not reproduce the \
+             mutant exactly"
+        );
+        found = true;
+        break;
+    }
+    assert!(
+        found,
+        "no seed in 0..500 produced two splice ops with distinct donors — widen the search"
+    );
 }
 
 // ---------------------------------------------------------------------
