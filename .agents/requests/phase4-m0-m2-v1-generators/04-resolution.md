@@ -1,7 +1,7 @@
 # Resolution — Phase 4 M0–M2 v1 Generators (+M3)
 
 **Final state (read this first):** branch `phase4-v1-generators` HEAD;
-`cargo test --workspace` = 110 tests / 22 suites green; authoritative
+`cargo test --workspace` = 117 tests / 22 suites green; authoritative
 dual-arch CI evidence = the newest green run on the branch head (every
 round's commit has its own green run; run ids per round below). Since the
 original handback (`20c8e0d`), six review rounds landed fixes — all
@@ -297,10 +297,37 @@ one-orchestrator deployment shape), tonic's 4 MB decode default (adequate),
 serde_yaml's built-in alias-expansion cap (billion-laughs already
 defended upstream), the HTTP sidecar (30 s timeout suffices).
 
+## Review round 8 (this branch's final SHA)
+
+Closed the loop on round 7 with the two strongest checks available:
+
+1. **Differential verification of the composition rewrite.** The old
+   `compose_segments` algorithm was reconstructed verbatim from the diff
+   and property-tested against the new cursor version: 100,000 random
+   track/interval/target shapes plus 12 forced edge cases (empty tracks,
+   coverage shortfalls, exact-boundary interval starts, touching
+   intervals, the legal-cap stress shape) — **zero mismatches**. The
+   invariant the cursors rely on (per-button intervals sorted,
+   non-overlapping, never touching) was proven from `geometric() >= 1`
+   across all three sampler entry points. The differential proptest is now
+   PERMANENT (`weighted_random.rs` test module, +7 tests → 117 total).
+2. **Third live smoke, against the actual final code.** Image rebuilt from
+   the round-7 SHA (`sha256:61beac68…`), 1,000-call smoke clean (0 errors,
+   0 illegal bursts, fingerprint identical to the prior 0.2.0 run —
+   independent confirmation the rewrite changed no bytes), and the
+   round-7 frames budget verified over the wire (live k=256 × 216000
+   request rejected with the documented INVALID_ARGUMENT). Evidence doc
+   updated; the round-6 scoping note is superseded.
+
+All round-7 claims verified: budget enforced post-merge (overrides cannot
+evade), default and smoke shapes unaffected, five poison-recovery sites
+with no cross-field write to corrupt, sibling cap checked pre-decode.
+One cosmetic fix: stray whitespace in the budget error message.
+
 ## Verification pointers
 
 Clean checkout at the HEAD of branch `phase4-v1-generators`: `cargo test
---workspace` (110 tests / 22
+--workspace` (117 tests / 22
 suites; needs the sibling `control-plane` checkout at `proto-v0.2.0`);
 golden recorder modes are `--ignored` tests; the CI golden↔version rule's
 synthetic-violation reproduction is documented in
