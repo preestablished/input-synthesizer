@@ -10,7 +10,7 @@ head's conclusion). Run ids: 29181386490 (`ab36bb4`), 29195495676
 (`6d41748`), 29199743592 (`ab1e528`), 29200931736 (`ee17797`),
 29202385874 (`e096e47`), 29204053262 (`498bc6c`), 29205449380
 (`6ebf5a5`) — all success on both arches. Since the original handback
-(`20c8e0d`), thirteen review rounds landed fixes — all documented in the
+(`20c8e0d`), fourteen review rounds landed fixes — all documented in the
 round sections; per-round test counts in those sections are scoped to
 their round's SHA, not the final tree.
 
@@ -456,6 +456,35 @@ addendum carries the parse-only-in-v1 carve-out; (3) API §5.2's
 "absent key = 0" comment now states it applies to as-authored documents
 only (overrides deep-merge onto a fully-populated base — siblings are
 preserved, never zeroed).
+
+## Review round 14 (final)
+
+Two audits of the round-13 strictness change and its blast radius. The
+delta verification: exactly correct 17-struct application (untagged/
+transparent exclusions right), the regression guard proven non-vacuous by
+mutation (removing one attribute makes it fail), JSON documents still
+accepted, merge keys confirmed unsupported but unused in all three repos
+(decisively: no doc note warranted), and one pre-existing serde_yaml quirk
+recorded for the radar — a bare `key:` (implicit null) on a defaulted
+section silently uses the default rather than erroring, in mild tension
+with the typo-protection framing (wrong NAMES error; empty VALUES do not).
+
+The cross-repo compatibility audit found the most consequential seam since
+round 4: **every experiment-config document exploration-orchestrator
+constructs today fails the real synth-core parser** — `button_alphabet` is
+written as a scalar name (`console16-12btn-v1`) where the schema (and
+API.md §5's own example, which parses and validates cleanly) requires the
+full mapping; one fixture omits the field entirely. It is fully masked by
+`FakeSynth`'s hand-rolled line scanner (no real deserialization), so their
+tests pass while real bring-up would fail INVALID_ARGUMENT on the first
+document. Verified by parsing each of their literal documents with the
+unmodified parser. Raised on their repo per the choreography rule:
+**bead `exploration-orchestrator-kk2`** (all eight affected sites named;
+fix = emit the mapping form or add registry indirection, plus make
+FakeSynth schema-faithful), wired as a BLOCKER of their `cww` transport
+bead with a comment. Open item 2 (served-loop smoke) therefore now has two
+named preconditions on their side: `kk2` then `cww`. Nothing changes in
+this repo — the schema matches its own specification.
 
 ## Verification pointers
 
