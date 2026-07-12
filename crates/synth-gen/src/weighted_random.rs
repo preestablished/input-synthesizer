@@ -492,7 +492,7 @@ mod tests {
     }
 
     // -------------------------------------------------------------------
-    // Round-7 differential check: the pre-498bc6c per-cut rescan
+    // Round-8 differential check: the pre-498bc6c per-cut rescan
     // reimplemented verbatim below, proptested against the live
     // `compose_segments` monotone-cursor rewrite. Goldens prove
     // byte-identical output at the shapes they sample; this proves it

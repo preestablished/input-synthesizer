@@ -2,11 +2,17 @@
 
 **Final state (read this first):** branch `phase4-v1-generators` HEAD;
 `cargo test --workspace` = 117 tests / 22 suites green; authoritative
-dual-arch CI evidence = the newest green run on the branch head (every
-round's commit has its own green run; run ids per round below). Since the
-original handback (`20c8e0d`), six review rounds landed fixes — all
-documented in the round sections; per-round test counts in those sections
-are scoped to their round's SHA, not the final tree.
+dual-arch CI evidence = the newest green run on the branch (every push
+triggers one; a documentation-only commit like the final sign-off edits
+necessarily trails its own run by one — check `gh run list` for the
+head's conclusion). Run ids: 29181386490 (`ab36bb4`), 29195495676
+(`c9851c3`), 29197027014 (`a9197dd`, covers round 2), 29198388598
+(`6d41748`), 29199743592 (`ab1e528`), 29200931736 (`ee17797`),
+29202385874 (`e096e47`), 29204053262 (`498bc6c`), 29205449380
+(`6ebf5a5`) — all success on both arches. Since the original handback
+(`20c8e0d`), nine review rounds landed fixes — all documented in the
+round sections; per-round test counts in those sections are scoped to
+their round's SHA, not the final tree.
 
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
@@ -67,10 +73,10 @@ recorded as an HTML comment in the doc itself (dated 2026-07-12).
   `golden_mutation` (12 M3 cases), all with committed fixtures under
   `testdata/`. CI runs every suite on both matrix arms (`ubuntu-latest`
   x86_64 + `ubuntu-24.04-arm` aarch64). Authoritative evidence = the newest
-  green run on the branch head (run 29200931736 on `ee17797` at round 5 —
-  both arms green — plus one more for the round-6 doc/fixture commit; every
-  intermediate round also ran green). The first green run (29181386490 on
-  `ab36bb4`) predates the 0.2.0 golden regeneration and is historical only.
+  green run on the branch (full per-round run list in the Final-state block
+  up top; 29205449380 on `6ebf5a5` was the newest at round-9 sign-off, both
+  arms green). The first green run (29181386490 on `ab36bb4`) predates the
+  0.2.0 golden regeneration and is historical only.
 - **(b) χ²/KS distribution tests green** —
   `synth-gen tests/statistical_suite.rs`: per-button duty χ² (Markov
   variance-inflated), hold durations vs Geometric(1/μ) (χ² + mean ±10%),
@@ -92,10 +98,9 @@ use), clippy `-D warnings` with `disallowed-types` HashMap/HashSet deny
 (`ci/check-golden-version.sh`; both fail and pass legs exercised on a scratch
 branch; reproduction one-liner in the script header). The work was pushed as
 branch `phase4-v1-generators` (pushing `main` requires operator approval).
-Every commit pushed to the branch ran the matrix green — most recently run
-29200931736 on `ee17797` (`rust (x86_64)` ✓, `rust (aarch64)` ✓, bench ✓);
-earlier greens: 29181386490 (`ab36bb4`), 29195495676 (`c9851c3`),
-29197027014, 29198388598 (`6d41748`), 29199743592 (`ab1e528`). No aarch64
+Every push to the branch ran the matrix green (full run list in the
+Final-state block; round 2's commit `9353272` is covered by the run on its
+immediate descendant `a9197dd` — same tree plus a doc file). No aarch64
 pending debt. Fast-forwarding `main` to the branch is left to the operator.
 
 ## v1 gate evidence
@@ -260,7 +265,7 @@ The seam review's findings and fixes are folded into the offers section
 above (real raw-segment contract fixtures; casing correction; the
 validation-counter gap sharpened in open item 2).
 
-## Review round 7 (this branch's final SHA)
+## Review round 7 (`498bc6c`)
 
 A resource-exhaustion security review (calibrated to the trusted-network,
 runaway-buggy-caller threat model) and an empirical stress run against the
@@ -297,7 +302,7 @@ one-orchestrator deployment shape), tonic's 4 MB decode default (adequate),
 serde_yaml's built-in alias-expansion cap (billion-laughs already
 defended upstream), the HTTP sidecar (30 s timeout suffices).
 
-## Review round 8 (this branch's final SHA)
+## Review round 8 (`6ebf5a5`)
 
 Closed the loop on round 7 with the two strongest checks available:
 
@@ -323,6 +328,24 @@ All round-7 claims verified: budget enforced post-merge (overrides cannot
 evade), default and smoke shapes unaffected, five poison-recovery sites
 with no cross-field write to corrupt, sibling cap checked pre-decode.
 One cosmetic fix: stray whitespace in the budget error message.
+
+## Review round 9 (final)
+
+Two closing checks. (1) **Vacuity audit of the round-8 differential
+test** (the sharpest remaining risk: an agent-written test verifying an
+agent-written rewrite): the in-test reference implementation was diffed
+against the genuinely-removed pre-round-7 code — verbatim identical — and
+mutation-tested: all three semantically-live mutants (direction-cursor
+boundary, button-interval boundary, cursor advance) are killed; the one
+survivor mutates provably dead code shared by both implementations
+(sort+dedup makes the guarded branch unreachable), unkillable by any
+differential test by construction. The test is real evidence.
+(2) **Final sign-off simulation** at the branch head from a fresh clone:
+117/22 tests, all eight acceptance suites green by name, every checkable
+resolution claim re-verified (CI conclusions at job level, image IDs,
+transcripts to the microsecond, seed-rule parity, owner-doc fixes, beads,
+golden-gate fail/pass legs) — verdict: **sign off, approved as written**,
+bouncing only the stale round-7/8 self-citations fixed in this commit.
 
 ## Verification pointers
 
