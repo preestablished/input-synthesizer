@@ -178,7 +178,7 @@ const INVALID_FIXTURES: &[(&str, &str)] = &[
     ),
     (
         "mean-hold-too-low.yaml",
-        "button A: mean_hold_frames 0.5 must be >= 1",
+        "button A: mean_hold_frames 0.5 must be in [1, 216000]",
     ),
     (
         "stickiness-out-of-range.yaml",
@@ -238,6 +238,15 @@ const INVALID_FIXTURES: &[(&str, &str)] = &[
     (
         "op-probs-unknown-key.yaml",
         "mutation.op_probs has unknown key \"bogus_op\"",
+    ),
+    (
+        "op-probs-negative.yaml",
+        "mutation.op_probs[\"extend\"] value -0.2 is negative",
+    ),
+    ("mean-hold-too-large.yaml", "must be in [1, 216000]"),
+    (
+        "mean-frames-zero.yaml",
+        "burst_len.mean_frames 0 must be in [1, 216000]",
     ),
     (
         "max-frames-too-large.yaml",

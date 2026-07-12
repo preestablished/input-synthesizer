@@ -84,8 +84,8 @@ pub fn validate(cfg: &ExperimentConfig) -> Result<(), Vec<ConfigError>> {
             fail!("button {name}: duty {duty} must be in [0, 1)");
             continue;
         }
-        if mu < 1.0 {
-            fail!("button {name}: mean_hold_frames {mu} must be >= 1");
+        if !(1.0..=216_000.0).contains(&mu) {
+            fail!("button {name}: mean_hold_frames {mu} must be in [1, 216000]");
             continue;
         }
         let bound = mu / (mu + 1.0);
@@ -109,9 +109,9 @@ pub fn validate(cfg: &ExperimentConfig) -> Result<(), Vec<ConfigError>> {
             "direction.mean_hold_frames {} must be finite",
             dir.mean_hold_frames
         );
-    } else if dir.mean_hold_frames < 1.0 {
+    } else if !(1.0..=216_000.0).contains(&dir.mean_hold_frames) {
         fail!(
-            "direction.mean_hold_frames {} must be >= 1",
+            "direction.mean_hold_frames {} must be in [1, 216000]",
             dir.mean_hold_frames
         );
     }
@@ -151,6 +151,12 @@ pub fn validate(cfg: &ExperimentConfig) -> Result<(), Vec<ConfigError>> {
     let bl = &cfg.burst_len;
     if bl.min_frames == 0 {
         fail!("burst_len.min_frames must be >= 1");
+    }
+    if !(1..=216_000).contains(&bl.mean_frames) {
+        fail!(
+            "burst_len.mean_frames {} must be in [1, 216000]",
+            bl.mean_frames
+        );
     }
     if bl.max_frames < bl.min_frames {
         fail!(
@@ -231,6 +237,9 @@ pub fn validate(cfg: &ExperimentConfig) -> Result<(), Vec<ConfigError>> {
     for (key, v) in &cfg.mutation.op_probs {
         if !v.is_finite() {
             fail!("mutation.op_probs[{key:?}] value {v} must be finite");
+        }
+        if *v < 0.0 {
+            fail!("mutation.op_probs[{key:?}] value {v} is negative");
         }
     }
     let prob_sum: f64 = cfg.mutation.op_probs.values().sum();

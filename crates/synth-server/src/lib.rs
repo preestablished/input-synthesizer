@@ -340,6 +340,13 @@ impl InputSynthesizer for SynthService {
                     .and_then(|pb| {
                         decode_context_burst(pb, &format!("node_context.sibling_bursts[{i}].burst"))
                     })?;
+                if !sb.score_delta.is_finite() {
+                    return Err(invalid_argument(format!(
+                        "node_context.sibling_bursts[{i}].score_delta must be finite \
+                         (got {})",
+                        sb.score_delta
+                    )));
+                }
                 Ok(ScoredContextBurst {
                     burst,
                     score_delta: sb.score_delta,
@@ -355,7 +362,7 @@ impl InputSynthesizer for SynthService {
                 .sum::<usize>();
         if context_segments > 100_000 {
             return Err(invalid_argument(format!(
-                "node_context carries {context_segments} pad segments across                  recent_inputs/parent_burst/sibling_bursts (limit 100000)"
+                "node_context carries {context_segments} pad segments across recent_inputs/parent_burst/sibling_bursts (limit 100000)"
             )));
         }
 

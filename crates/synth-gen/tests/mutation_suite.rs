@@ -512,3 +512,57 @@ fn degraded_without_parent_or_siblings_excludes_mutation_slots() {
     let reasons: Vec<&str> = degraded.iter().map(|d| d.reason.as_str()).collect();
     assert!(reasons.contains(&"no_parent_burst"));
 }
+
+/// Round-10 regression: direction priors are WEIGHTS (the direction process
+/// renormalizes), but `flip_button`'s redirect fed them raw to a categorical
+/// that assumes sum 1 — with priors scaled to sum 2.0, UP/DOWN (declared
+/// last) were unreachable. After normalization every direction must appear
+/// among redirects across seeds.
+#[test]
+fn flip_button_redirect_normalizes_scaled_priors() {
+    let mut cfg = common::mutation_cfg_forced_op("flip_button");
+    // Same shape as the defaults, scaled x2 (sum = 2.0) — valid config.
+    for (_, w) in cfg.weighted_random.direction.priors.iter_mut() {
+        *w *= 2.0;
+    }
+    synth_core::config::validate(&cfg).expect("scaled priors are valid");
+    let model = model_for(&cfg);
+
+    let mut seen_up_or_down = false;
+    for seed in 0..400u64 {
+        let (_, ctx) = dump_ctx();
+        let root = fanout_root(seed, &ctx.node_id);
+        let (_, prov) = mutation::generate(&cfg, &ctx, &root, 0, &model);
+        for op in &prov.ops {
+            for (k, v) in &op.args {
+                if k == "repeats" || k.starts_with("repeat") || k == "actions" {
+                    let _ = v;
+                }
+            }
+        }
+        // Inspect recorded redirect masks: UP bit 6, DOWN bit 7.
+        for op in &prov.ops {
+            if op.op != "flip_button" {
+                continue;
+            }
+            for (_, v) in &op.args {
+                for part in v.split(';') {
+                    if let Some(rest) = part.split(",redirect,").nth(1) {
+                        if let Ok(mask) = rest.parse::<u16>() {
+                            if mask & (1 << 6) != 0 || mask & (1 << 7) != 0 {
+                                seen_up_or_down = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if seen_up_or_down {
+            break;
+        }
+    }
+    assert!(
+        seen_up_or_down,
+        "no UP/DOWN redirect in 400 seeds — priors likely fed unnormalized"
+    );
+}

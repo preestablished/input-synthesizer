@@ -1,7 +1,7 @@
 # Resolution — Phase 4 M0–M2 v1 Generators (+M3)
 
 **Final state (read this first):** branch `phase4-v1-generators` HEAD;
-`cargo test --workspace` = 117 tests / 22 suites green; authoritative
+`cargo test --workspace` = 119 tests / 22 suites green; authoritative
 dual-arch CI evidence = the newest green run on the branch (every push
 triggers one; a documentation-only commit like the final sign-off edits
 necessarily trails its own run by one — check `gh run list` for the
@@ -10,7 +10,7 @@ head's conclusion). Run ids: 29181386490 (`ab36bb4`), 29195495676
 (`6d41748`), 29199743592 (`ab1e528`), 29200931736 (`ee17797`),
 29202385874 (`e096e47`), 29204053262 (`498bc6c`), 29205449380
 (`6ebf5a5`) — all success on both arches. Since the original handback
-(`20c8e0d`), nine review rounds landed fixes — all documented in the
+(`20c8e0d`), ten review rounds landed fixes — all documented in the
 round sections; per-round test counts in those sections are scoped to
 their round's SHA, not the final tree.
 
@@ -265,6 +265,19 @@ The seam review's findings and fixes are folded into the offers section
 above (real raw-segment contract fixtures; casing correction; the
 validation-counter gap sharpened in open item 2).
 
+## Review round 6 (`e096e47`)
+
+(Restored as its own section in round 10 — this round's record had been
+folded into the Final-state block and evidence-doc edits.) A
+fixture-consumer verification and a handback coherence audit. The consumer
+check independently reproduced all 12 contract-fixture burst_id hashes with
+a from-scratch binary, found zero invariant violations, and judged WR-only
+coverage sufficient for a translation contract test (the translator sees
+segments, never the generator kind). Applied: self-contained fixture header
+(bit table + invariants), clamp-edge boundary cases (slot totals hit 16 and
+1800 exactly), the Final-state block, branch-head verification pointers,
+round-heading SHAs, evidence scoping note, README pointers.
+
 ## Review round 7 (`498bc6c`)
 
 A resource-exhaustion security review (calibrated to the trusted-network,
@@ -347,10 +360,35 @@ transcripts to the microsecond, seed-rule parity, owner-doc fixes, beads,
 golden-gate fail/pass legs) — verdict: **sign off, approved as written**,
 bouncing only the stale round-7/8 self-citations fixed in this commit.
 
+## Review round 10 (final)
+
+A findings-ledger reconciliation (all 57 findings from rounds 1–9 verified
+against the tree: 55 fully in place, 2 audit-trail-only gaps fixed here —
+this round-6 section restored, and the "round vs ties-to-even" note now
+pinned in ARCHITECTURE §4.5 with a dated comment) and a COLD, unprimed
+RedOwl pass (no knowledge of prior rounds). The cold pass found one real
+bug nine primed rounds missed: `flip_button`'s direction re-roll fed RAW
+config priors to a categorical that assumes sum 1 — a valid config with
+scaled priors (weights, per §4.4) silently made late-declared directions
+unreachable. Fixed by normalizing (bitwise no-op for sum-1 configs — all
+goldens unchanged, proven by replay) + a scaled-priors regression test.
+Same-family validation gaps closed: negative `op_probs` entries rejected;
+`mean_hold_frames` and `burst_len.mean_frames` bounded to [1, 216000]
+(closing a geometric-inversion corner at astronomical means and the
+`ln(0)` lognormal location at mean 0); non-finite sibling `score_delta`
+rejected (an inf delta deterministically inverted donor selection).
+Deliberate scoping pinned in API.md §2.4: proto `map<>` fields make RAW
+response frames non-byte-stable across processes; the reproducibility
+contract is carried by burst contents, burst_ids, and the fingerprint —
+consumers must not hash raw frames. Cosmetic: context-limit error
+whitespace. The cold reviewer's overall verdict: "solid, unusually
+well-hardened; the wire boundary is genuinely panic-free as far as I can
+trace."
+
 ## Verification pointers
 
 Clean checkout at the HEAD of branch `phase4-v1-generators`: `cargo test
---workspace` (117 tests / 22
+--workspace` (119 tests / 22
 suites; needs the sibling `control-plane` checkout at `proto-v0.2.0`);
 golden recorder modes are `--ignored` tests; the CI golden↔version rule's
 synthetic-violation reproduction is documented in

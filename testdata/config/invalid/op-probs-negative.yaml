@@ -1,0 +1,16 @@
+version: 1
+kind: experiment_config
+experiment_id: exp-invalid
+model: pad
+button_alphabet:
+  name: console16-12btn-v1
+  buttons:
+    [ {name: A, bit: 0}, {name: B, bit: 1}, {name: X, bit: 2}, {name: Y, bit: 3},
+      {name: L, bit: 4}, {name: R, bit: 5}, {name: UP, bit: 6},
+      {name: DOWN, bit: 7}, {name: LEFT, bit: 8}, {name: RIGHT, bit: 9},
+      {name: START, bit: 10}, {name: SELECT, bit: 11} ]
+  exclusive_groups: [ [UP, DOWN], [LEFT, RIGHT] ]
+  directions: { group: [UP, DOWN, LEFT, RIGHT], allow_diagonals: true }
+mutation:
+  op_probs: { perturb_timing: 1.2, extend: -0.2, flip_button: 0.0, splice: 0.0,
+              truncate: 0.0, duplicate_segment: 0.0, swap_adjacent: 0.0 }
