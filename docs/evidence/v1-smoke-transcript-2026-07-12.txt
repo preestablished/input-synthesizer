@@ -1,0 +1,18 @@
+bring-up ok: experiment_config id c0242d64e7128580b178c85aa38382dfb9606cfb2972e78d4b817bbd32afe02a, pack ids ["24e50dfe3dd64e4ff0791609cb3e0276cde47054a33e19fa32803154e765c53f"], synth_version 0.1.0
+100/1000 calls done
+200/1000 calls done
+300/1000 calls done
+400/1000 calls done
+500/1000 calls done
+600/1000 calls done
+700/1000 calls done
+800/1000 calls done
+900/1000 calls done
+1000/1000 calls done
+--- v1 smoke summary ---
+endpoint: http://127.0.0.1:7430
+calls: 1000 (k=32) errors: 0
+bursts: 32000 (macro slots: 16000)
+client-side illegal bursts: 0
+config_fingerprint: 4a9718d56d89c63a601054ef68ed400d8a039cbfaff321ebe5d78f2dd9c7456e
+latency us: p50=2594 p99=13418 max=31861
