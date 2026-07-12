@@ -13,7 +13,12 @@ identical-mutant retry (one forced `perturb_timing`, at most one retry),
 `MutationProvenance` with ordered ops + stringified sampled args.
 
 Streams: `slot/{s}/mut/ops` (count + selection + base/donor pick),
-`slot/{s}/mut/op/{i}` (i-th operator's arguments).
+`slot/{s}/mut/op/{i}` (i-th operator's arguments), and
+`slot/{s}/mut/retry` (the forced `perturb_timing` retry pass). The retry MUST
+use its own label: re-deriving an already-used label replays the identical
+sequence and reproduces the identical mutant — a silent no-op — and would
+violate the one-label-one-pass rule. Add `slot/{s}/mut/retry` to the repo's
+stream-label documentation next to the §7.2 table entries.
 
 Unavailability: no parent AND no siblings ⇒ generator unavailable, mixer
 reallocates, `degraded[]` gets `"no_parent_burst"` (M1's mixer already
@@ -22,7 +27,9 @@ handles the mechanism; M3 adds the generator).
 ## Acceptance (owner §M3 Accept)
 
 - Per-operator unit goldens (fixed seed ⇒ exact output burst per operator),
-  both arches.
+  both arches. Golden comparison over canonical forms — `MutationOp.args` is a
+  proto `map<>` (HashMap wire order is nondeterministic); compare as sorted
+  `Vec<(K,V)>` per the `00-` global rule.
 - Operator frequency over 10,000 mutants matches `op_probs` (χ², p<0.001,
   fixed seed); mean ops/mutant = 1.75 ± 0.05.
 - Property tests: every mutant legal; within length bounds; `burst_hash` ≠

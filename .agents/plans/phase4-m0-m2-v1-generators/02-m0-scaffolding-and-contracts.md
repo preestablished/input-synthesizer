@@ -72,8 +72,15 @@ encoding of the versioned wire form (§2 trait doc); `burst_id` = that hash.
 
 `InputModel` trait per §2 exactly: `burst_len`, `legalize`, `tokenize`,
 `detokenize`, `burst_hash`, `kind`. The skeleton's 2-method trait is replaced.
-`SYNTH_VERSION: &str` constant (start `"0.1.0"`, keep = crate version) and
-`BURST_FORMAT_VERSION: u32 = 1`.
+`SYNTH_VERSION: &str` constant (start `"0.1.0"`) and
+`BURST_FORMAT_VERSION: u32 = 1`. All crates inherit
+`version.workspace = true` from the root `[workspace.package]`;
+`SYNTH_VERSION` tracks THAT workspace version (assert equality in a test via
+`env!("CARGO_PKG_VERSION")`), so "version bump" always means the single
+`version` key in the root `Cargo.toml`.
+
+Proto↔domain conversions must reject out-of-range values (e.g. proto
+`buttons: uint32` → domain `u16`: error, never silent truncation).
 
 ### 4.2 RNG fan-out (§7.1, normative — copy verbatim semantics)
 
@@ -114,10 +121,14 @@ under `testdata/config/invalid/*.yaml`, each test asserting the exact error;
 boundary fixture `duty == μ/(μ+1)` loads. Proto round-trip property test
 (prost encode/decode) with `proptest`. `legalize` property tests: idempotent;
 output satisfies every API §1 pad invariant for arbitrary inputs
-(the pad `legalize` itself is implemented in `synth-pad`, M0 provides the
-trait + tests may land with M1 if legalize is still a stub — but the M0 accept
-list includes them, so implement real pad legalize in M0: move/extend the
-skeleton's `PadModel` into `synth-pad` with the alphabet-driven rules of §2.1).
+Pad `legalize` is an M0 accept item: implement the REAL alphabet-driven
+legalize (§2.1 rules) in `synth-pad` during M0 — move/extend the skeleton's
+`PadModel`; do not defer it to M1.
+
+Config parsing dependency note: use `serde_yaml` 0.9 pinned. It is archived
+upstream but stable, accepts JSON (YAML superset), and its `Location` API
+provides the line/column error reporting M2 needs; record this as a decision
+alongside the libm one (revisit only if a real defect appears).
 
 ## 5. libm decision (risk-table item, decide at M0)
 
@@ -137,7 +148,8 @@ Copy exploration-orchestrator's matrix pattern:
 - Matrix: `ubuntu-latest`/x86_64 + `ubuntu-24.04-arm`/aarch64; checkout self at
   `repo/`, control-plane at `control-plane/` **with `ref: proto-v0.2.0`**.
 - Steps: `cargo fmt --check`; `cargo clippy --workspace --all-targets -- -D
-  warnings`; `cargo build --workspace`; `cargo test --workspace`.
+  warnings` (toolchain step needs `components: clippy` — the current skeleton
+  CI lacks it); `cargo build --workspace`; `cargo test --workspace`.
 - **HashMap deny**: add `clippy.toml` with
   `disallowed-types = ["std::collections::HashMap", "std::collections::HashSet"]`
   — workspace-wide is simplest; `synth-server` may allow via
@@ -147,9 +159,12 @@ Copy exploration-orchestrator's matrix pattern:
   proto boundary in synth-core before any decision-path use.
 - **Golden↔version gate**: script `ci/check-golden-version.sh` — if
   `git diff --name-only $(git merge-base HEAD origin/main)..HEAD` touches
-  `testdata/` goldens but no `SYNTH_VERSION` change is in the diff of
-  `crates/synth-core` version file, fail with a message. Runs as a CI step on
-  PRs (skip when merge-base == HEAD). Add a self-test: the verification offer
+  `testdata/` goldens but the diff does not change the `version` key in the
+  root `Cargo.toml`'s `[workspace.package]` (the single source `SYNTH_VERSION`
+  tracks — all crates use `version.workspace = true`), fail with a message.
+  Runs as a CI step on PRs (skip when merge-base == HEAD; this heuristic is
+  PR-flow-only — direct pushes to main and rebased stacks skip the gate, which
+  is accepted and documented in the script header). Add a self-test: the verification offer
   says the phases track will "confirm the CI rule actually fails a synthetic
   violation" — document in the script header the one-liner to reproduce a
   synthetic violation locally.

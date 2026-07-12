@@ -88,9 +88,17 @@ starts. Close each bead with `bd close <id> -r "<evidence link>"`.
 - **Determinism discipline per ARCHITECTURE §7**: all proposal-path randomness
   derives from `req.seed` via `fanout_root`/`stream`; canonical stream labels
   per §7.2; one label, one consumer, one pass; draw order is part of the format.
-- **No `std::collections::HashMap` in decision paths** (`synth-core`,
-  `synth-pad`, `synth-gen`): enforced by clippy `disallowed-types`. Use
+- **No `std::collections::HashMap` in decision paths**: ARCHITECTURE §7.2
+  rule 4 names `synth-core`, `synth-gen`, `synth-mine`; we enforce
+  workspace-wide via clippy `disallowed-types` (stricter is fine). Use
   `Vec`/`BTreeMap`/`IndexMap`.
+- **Never golden-compare raw prost wire bytes of messages containing proto
+  `map<>` fields.** prost generates `std::collections::HashMap` for map fields
+  (determinism-proto never sets `.btree_map`), and map encoding iterates in
+  hash order — byte output varies per process even on one arch. Goldens hash
+  canonical internal forms (postcard over domain types with `IndexMap`/sorted
+  entries) or compare decoded structures with maps normalized to sorted
+  `Vec<(K,V)>`. `burst_hash` (postcard over internal types) is already safe.
 - **No `std::time` in sampling paths.** No platform SIMD math in sampling.
 - All transcendentals in sampling paths route through the pinned pure-Rust
   `libm` crate (decision rationale in `02-`, §libm).
