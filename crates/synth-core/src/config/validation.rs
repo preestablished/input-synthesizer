@@ -286,6 +286,15 @@ pub fn validate(cfg: &ExperimentConfig) -> Result<(), Vec<ConfigError>> {
         );
     }
 
+    // ---- policy (parse-only in v1; minimal sanity so the addendum's
+    // finiteness claim holds schema-wide) ----
+    if !cfg.policy.temperature.is_finite() {
+        fail!(
+            "policy.temperature {} must be finite",
+            cfg.policy.temperature
+        );
+    }
+
     // ---- model / grammar ----
     if cfg.model == ModelKindCfg::EventGrammar && cfg.grammar_id.is_none() {
         fail!("model event_grammar requires grammar_id");
