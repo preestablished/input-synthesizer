@@ -1,28 +1,18 @@
 #![forbid(unsafe_code)]
 
-use synth_proto::v1::{Burst, PadSegment, BURST_FORMAT_VERSION};
+//! Core domain types, the `InputModel` trait, RNG fan-out, and experiment
+//! configuration for the input synthesizer (ARCHITECTURE.md §2, §7; API.md §5).
 
-pub trait InputModel {
-    fn legalize(&self, burst: Burst) -> Burst;
-}
+pub mod config;
+pub mod fmath;
+pub mod model;
+pub mod rng;
+pub mod types;
 
-#[derive(Default)]
-pub struct PadModel;
+/// Semver of the synthesizer build, echoed in every response and folded into
+/// `config_fingerprint`. Tracks the workspace version: any golden change must
+/// bump the root `[workspace.package] version` (CI-enforced).
+pub const SYNTH_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-impl InputModel for PadModel {
-    fn legalize(&self, mut burst: Burst) -> Burst {
-        burst.format_version = BURST_FORMAT_VERSION;
-        burst
-    }
-}
-
-pub fn neutral_burst(frames: u32) -> Burst {
-    Burst {
-        format_version: BURST_FORMAT_VERSION,
-        pad_segments: vec![PadSegment {
-            start_frame: 0,
-            frames,
-            buttons: 0,
-        }],
-    }
-}
+/// Version of the burst wire format (API.md §1).
+pub const BURST_FORMAT_VERSION: u32 = 1;

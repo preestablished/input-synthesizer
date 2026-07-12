@@ -9,3 +9,22 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 determinism-proto = { path = "../control-plane/crates/determinism-proto", default-features = false }
+synth-proto = { path = "crates/synth-proto" }
+synth-core = { path = "crates/synth-core" }
+synth-pad = { path = "crates/synth-pad" }
+synth-gen = { path = "crates/synth-gen" }
+
+blake3 = "1.5"
+rand_core = "0.6"
+rand_chacha = "0.3"
+libm = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+indexmap = { version = "2", features = ["serde"] }
+postcard = { version = "1", features = ["alloc"] }
+thiserror = "2"
+
+# dev-only
+proptest = "1"
+statrs = "0.18"
+prost = "0.14.4"
