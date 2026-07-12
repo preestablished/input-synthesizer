@@ -46,6 +46,11 @@ collections instead of `HashMap`/`HashSet`, canonical `postcard` encoding for
 hashed/fingerprinted values, etc.) are documented in:
 
 - [`docs/proto-audit.md`](docs/proto-audit.md) — proto consumption pattern
+- [`docs/evidence/`](docs/evidence/) — v1-gate deployment + 1,000-call smoke
+  records (image digests, transcripts)
+- [`testdata/contract/pad-burst-fixtures.yaml`](testdata/contract/pad-burst-fixtures.yaml)
+  — raw-segment pad-burst fixtures offered to downstream repos for
+  burst→input-log contract tests (self-contained decoding key in the header)
   and field-by-field audit against the API contract.
 - `~/.agents/projects/determinism/docs/input-synthesizer/ARCHITECTURE.md`
   (owner-maintained architecture doc; §7.2 rule 4 is the ordered-collections
