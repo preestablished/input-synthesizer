@@ -8,6 +8,8 @@ license.workspace = true
 synth-core = { workspace = true }
 synth-pad = { workspace = true }
 rand_core = { workspace = true }
+rand_chacha = { workspace = true }
+indexmap = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
