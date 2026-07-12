@@ -71,10 +71,16 @@ impl SynthService {
         let cfg = synth_core::config::parse(bytes).map_err(|e| e.to_string())?;
         synth_core::config::validate(&cfg).map_err(|errs| join_errors(&errs))?;
         let doc_id = blake3::hash(bytes).to_hex().to_string();
-        let mut state = self.state.write().expect("state lock poisoned");
+        let mut state = self
+            .state
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         state
             .experiments
             .insert(cfg.experiment_id.clone(), (cfg, doc_id.clone()));
+        self.metrics
+            .experiments_loaded
+            .set(i64::try_from(state.experiments.len()).unwrap_or(i64::MAX));
         Ok(doc_id)
     }
 
@@ -98,7 +104,10 @@ impl SynthService {
         let pack_id = pack.pack_id.clone();
         let items_loaded = u32::try_from(pack.macros.len()).unwrap_or(u32::MAX);
 
-        let mut state = self.state.write().expect("state lock poisoned");
+        let mut state = self
+            .state
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let warnings = state.pack_registry.insert(pack);
         self.metrics
             .macro_packs_loaded
@@ -203,7 +212,10 @@ impl InputSynthesizer for SynthService {
         // — config, pack ids, and macro resolution — consistent with one
         // snapshot.
         let (effective_cfg, loaded_pack_ids, resolved_macros) = {
-            let state = self.state.read().expect("state lock poisoned");
+            let state = self
+                .state
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let Some((base_cfg, _doc_id)) = state.experiments.get(&req.experiment_id) else {
                 return Err(invalid_argument(format!(
                     "unknown experiment_id {:?}",
@@ -253,6 +265,21 @@ impl InputSynthesizer for SynthService {
             (effective_cfg, loaded_pack_ids, resolved_macros)
         };
 
+        // Per-request frames budget (round-7 review): k and
+        // burst_len.max_frames are individually capped, but their PRODUCT
+        // bounds both compute and response size (a k=256 x 216000-frame
+        // request measured a 45 MB response — beyond tonic's default 4 MB
+        // client decode limit). 600k frames is ~5x the largest legitimate
+        // shape (k=64 x max 1800) and keeps the worst-case RLE response
+        // under the default client limit.
+        let frames_budget = u64::from(req.k) * u64::from(effective_cfg.burst_len.max_frames);
+        if frames_budget > 600_000 {
+            return Err(invalid_argument(format!(
+                "k ({}) x burst_len.max_frames ({}) = {frames_budget} exceeds the                  600000-frame per-request budget; lower k or max_frames",
+                req.k, effective_cfg.burst_len.max_frames
+            )));
+        }
+
         let node_context = req
             .node_context
             .ok_or_else(|| invalid_argument("node_context.node_id is required"))?;
@@ -287,6 +314,16 @@ impl InputSynthesizer for SynthService {
             .as_ref()
             .map(|pb| decode_context_burst(pb, "node_context.parent_burst"))
             .transpose()?;
+        // Runaway-caller guard (round-7 review): a buggy accumulator that
+        // concatenates a node's whole history into siblings should fail
+        // loudly, not allocate. Generous vs. real use (siblings ~ k's
+        // ballpark).
+        if node_context.sibling_bursts.len() > 64 {
+            return Err(invalid_argument(format!(
+                "node_context.sibling_bursts has {} entries (limit 64)",
+                node_context.sibling_bursts.len()
+            )));
+        }
         let sibling_bursts = node_context
             .sibling_bursts
             .iter()
@@ -309,6 +346,18 @@ impl InputSynthesizer for SynthService {
                 })
             })
             .collect::<Result<Vec<_>, Status>>()?;
+
+        let context_segments = recent_inputs.as_ref().map_or(0, |p| p.segments.len())
+            + parent_burst.as_ref().map_or(0, |b| b.pad.segments.len())
+            + sibling_bursts
+                .iter()
+                .map(|s| s.burst.pad.segments.len())
+                .sum::<usize>();
+        if context_segments > 100_000 {
+            return Err(invalid_argument(format!(
+                "node_context carries {context_segments} pad segments across                  recent_inputs/parent_burst/sibling_bursts (limit 100000)"
+            )));
+        }
 
         let gen_ctx = GenContext {
             node_id: node_context.node_id.clone(),
@@ -504,7 +553,10 @@ impl InputSynthesizer for SynthService {
 
         let doc_id = blake3::hash(&bytes).to_hex().to_string();
 
-        let mut state = self.state.write().expect("state lock poisoned");
+        let mut state = self
+            .state
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some((_, existing_id)) = state.experiments.get(&cfg.experiment_id) {
             if existing_id == &doc_id {
                 // Reloading an identical document is a no-op.
@@ -518,6 +570,9 @@ impl InputSynthesizer for SynthService {
         state
             .experiments
             .insert(cfg.experiment_id.clone(), (cfg, doc_id.clone()));
+        self.metrics
+            .experiments_loaded
+            .set(i64::try_from(state.experiments.len()).unwrap_or(i64::MAX));
 
         Ok(Response::new(LoadMacroPackResponse {
             document_id: doc_id,
@@ -537,7 +592,10 @@ impl InputSynthesizer for SynthService {
         &self,
         _request: Request<HealthRequest>,
     ) -> Result<Response<HealthResponse>, Status> {
-        let state = self.state.read().expect("state lock poisoned");
+        let state = self
+            .state
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         Ok(Response::new(HealthResponse {
             status: v1::health_response::Status::Serving as i32,
             synth_version: SYNTH_VERSION.to_owned(),

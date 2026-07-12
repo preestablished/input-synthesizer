@@ -65,6 +65,16 @@ before any decision-path use.
 
 ## Golden ↔ version rule
 
+## Operational notes
+
+Loaded documents (experiment configs, macro packs) accumulate for the process
+lifetime — there is no unload RPC in v1. Entries are small (KBs) and the
+expected caller loads a handful at bring-up (INTEGRATION.md §3 B), so this is
+a dashboard concern, not a cap: watch `synth_experiments_loaded` and
+`synth_macro_packs_loaded` for a runaway bring-up loop. Per-request budgets
+(k ≤ 256, `k x max_frames` ≤ 600k frames, ≤ 64 sibling bursts, ≤ 100k context
+segments) bound what any single call can cost.
+
 Any change under `testdata/` (golden fixtures — RNG-stream vectors, config
 goldens, etc.) must be accompanied by a bump of the workspace version (the
 `version` key under `[workspace.package]` in the root `Cargo.toml`; every

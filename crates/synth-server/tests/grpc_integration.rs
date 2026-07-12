@@ -1082,3 +1082,93 @@ async fn malformed_parent_burst_id_is_invalid_argument() {
 
     server.shutdown().await;
 }
+
+// ---------------------------------------------------------------------
+// Round-7 hardening: per-request budgets.
+// ---------------------------------------------------------------------
+
+/// k x max_frames product budget: individually-legal knobs whose product
+/// would pin the server and emit responses beyond default client decode
+/// limits are rejected up front.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn frames_budget_rejects_k_times_max_frames_over_limit() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+    client
+        .load_macro_pack(load_request(minimal_config_bytes()))
+        .await
+        .expect("load config");
+
+    let mut req = propose_request("exp-test", 256, "n", 7);
+    req.config_overrides_yaml =
+        b"burst_len: { distribution: fixed, mean_frames: 216000, min_frames: 16, max_frames: 216000 }"
+            .to_vec();
+    let err = client.propose_bursts(req).await.expect_err("must reject");
+    assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    assert!(err.message().contains("600000-frame per-request budget"));
+
+    // Same override with a small k passes the budget.
+    let mut req = propose_request("exp-test", 2, "n", 7);
+    req.config_overrides_yaml =
+        b"burst_len: { distribution: fixed, mean_frames: 216000, min_frames: 16, max_frames: 216000 }"
+            .to_vec();
+    let resp = client
+        .propose_bursts(req)
+        .await
+        .expect("k=2 within budget")
+        .into_inner();
+    assert_eq!(resp.bursts.len(), 2);
+
+    server.shutdown().await;
+}
+
+/// Runaway-context guards: sibling count and total context segments are
+/// bounded with clear errors.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn oversized_context_is_rejected_with_clear_errors() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+    client
+        .load_macro_pack(load_request(minimal_config_bytes()))
+        .await
+        .expect("load config");
+
+    // 65 siblings > the 64 cap.
+    let sibling = || {
+        let pad = Burst::Pad(PadBurst {
+            segments: vec![PadSegment {
+                buttons: 0,
+                hold_frames: 16,
+            }],
+        });
+        synth_proto::v1::ScoredBurst {
+            burst: Some(synth_proto::v1::ProvenancedBurst {
+                burst: Some(to_proto(&pad, "console16-12btn-v1")),
+                provenance: None,
+            }),
+            score_delta: 1.0,
+        }
+    };
+    let mut req = propose_request("exp-test", 1, "n", 7);
+    req.node_context.as_mut().unwrap().sibling_bursts = (0..65).map(|_| sibling()).collect();
+    let err = client.propose_bursts(req).await.expect_err("must reject");
+    assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    assert!(err.message().contains("limit 64"), "{}", err.message());
+
+    // A recent_inputs burst with > 100000 segments trips the segment cap.
+    let huge = Burst::Pad(PadBurst {
+        segments: (0..100_001u32)
+            .map(|i| PadSegment {
+                buttons: u16::from(i % 2 == 0),
+                hold_frames: 1,
+            })
+            .collect(),
+    });
+    let mut req = propose_request("exp-test", 1, "n", 7);
+    req.node_context.as_mut().unwrap().recent_inputs = Some(to_proto(&huge, "console16-12btn-v1"));
+    let err = client.propose_bursts(req).await.expect_err("must reject");
+    assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    assert!(err.message().contains("limit 100000"), "{}", err.message());
+
+    server.shutdown().await;
+}

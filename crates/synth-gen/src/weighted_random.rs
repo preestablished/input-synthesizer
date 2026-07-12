@@ -424,26 +424,42 @@ fn compose_segments(
     cuts.sort_unstable();
     cuts.dedup();
 
+    // Merge-style single pass. Cut starts are strictly increasing, direction
+    // segments are consecutive in time, and each button's intervals are
+    // sorted and non-overlapping (button_track emits them forward in time),
+    // so one monotone cursor per track replaces the per-cut rescans that
+    // made this O(cuts x segments) — quadratic at long-burst configs (a
+    // legal k=256 x 216000-frame request measured ~80 s; round-7 review).
+    // Lookup semantics are identical: direction mask = first segment whose
+    // cumulative end exceeds `start`; button held iff some interval
+    // satisfies s <= start < e.
     let mut segments = Vec::with_capacity(cuts.len());
+    let mut dir_idx = 0usize;
+    let mut dir_cum_end = dir_segments.first().map(|s| s.frames).unwrap_or(0);
+    let mut btn_cursors = vec![0usize; button_intervals.len()];
     for window in cuts.windows(2) {
         let (start, end) = (window[0], window[1]);
         if end <= start {
             continue;
         }
         let mut mask = 0u16;
-        // Direction mask at `start`.
-        let mut acc = 0u64;
-        for seg in dir_segments {
-            let seg_end = acc + seg.frames;
-            if start < seg_end {
-                mask |= seg.mask;
-                break;
+        while dir_idx < dir_segments.len() && dir_cum_end <= start {
+            dir_idx += 1;
+            if let Some(seg) = dir_segments.get(dir_idx) {
+                dir_cum_end += seg.frames;
             }
-            acc = seg_end;
         }
-        for (btn_mask, intervals) in button_intervals {
-            if intervals.iter().any(|&(s, e)| s <= start && start < e) {
-                mask |= btn_mask;
+        if let Some(seg) = dir_segments.get(dir_idx) {
+            mask |= seg.mask;
+        }
+        for (cursor, (btn_mask, intervals)) in btn_cursors.iter_mut().zip(button_intervals) {
+            while *cursor < intervals.len() && intervals[*cursor].1 <= start {
+                *cursor += 1;
+            }
+            if let Some(&(s, _)) = intervals.get(*cursor) {
+                if s <= start {
+                    mask |= btn_mask;
+                }
             }
         }
         segments.push(PadSegment {

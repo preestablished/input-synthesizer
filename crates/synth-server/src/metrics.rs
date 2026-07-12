@@ -11,6 +11,7 @@ pub struct Metrics {
     pub propose_latency_seconds: Histogram,
     pub generator_unavailable_total: IntCounterVec,
     pub macro_packs_loaded: IntGauge,
+    pub experiments_loaded: IntGauge,
     pub mine_runs_total: IntCounter,
     pub policy_fallback_total: IntCounter,
 }
@@ -50,6 +51,13 @@ impl Metrics {
             "Number of macro packs currently loaded.",
         )
         .expect("valid metric");
+        let experiments_loaded = IntGauge::new(
+            "synth_experiments_loaded",
+            "Number of experiment configs currently loaded (round-7 review: \
+             loads accumulate for the process lifetime; a runaway bring-up \
+             loop shows up here before it becomes a memory problem).",
+        )
+        .expect("valid metric");
         let mine_runs_total =
             IntCounter::new("synth_mine_runs_total", "Total MineMacros runs completed.")
                 .expect("valid metric");
@@ -75,6 +83,9 @@ impl Metrics {
             .register(Box::new(macro_packs_loaded.clone()))
             .expect("register metric");
         registry
+            .register(Box::new(experiments_loaded.clone()))
+            .expect("register metric");
+        registry
             .register(Box::new(mine_runs_total.clone()))
             .expect("register metric");
         registry
@@ -88,6 +99,7 @@ impl Metrics {
             propose_latency_seconds,
             generator_unavailable_total,
             macro_packs_loaded,
+            experiments_loaded,
             mine_runs_total,
             policy_fallback_total,
         }
