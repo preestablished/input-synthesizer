@@ -24,6 +24,17 @@ indexmap = { version = "2", features = ["serde"] }
 postcard = { version = "1", features = ["alloc"] }
 thiserror = "2"
 
+# server shell
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net"] }
+tonic = "0.14.6"
+tonic-prost = "0.14.6"
+prometheus = { version = "0.13", default-features = false }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+hyper = "1"
+hyper-util = { version = "0.1", features = ["tokio", "server-auto", "http1"] }
+http-body-util = "0.1"
+
 # dev-only
 proptest = "1"
 statrs = "0.18"
