@@ -99,7 +99,7 @@ pub fn allocate_slots(
     //    permutation so generator identity isn't correlated with slot index.
     let mut slots: Vec<GeneratorKind> = Vec::with_capacity(k);
     for (&(kind, _), &count) in norm.iter().zip(&counts) {
-        slots.extend(std::iter::repeat(kind).take(count));
+        slots.extend(std::iter::repeat_n(kind, count));
     }
     debug_assert_eq!(slots.len(), k);
     for i in (1..slots.len()).rev() {

@@ -95,7 +95,7 @@ fn dir_mask(cfg: &ExperimentConfig, name: &str) -> u16 {
 
 /// Pick from a categorical by normalized weights (assumes sum ≈ 1; falls
 /// back to the last entry on accumulated rounding).
-fn categorical<'a>(entries: &'a [(String, f64)], u: f64) -> &'a str {
+fn categorical(entries: &[(String, f64)], u: f64) -> &str {
     let mut acc = 0.0;
     for (name, w) in entries {
         acc += w;
