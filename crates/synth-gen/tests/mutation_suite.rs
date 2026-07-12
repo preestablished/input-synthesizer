@@ -566,3 +566,40 @@ fn flip_button_redirect_normalizes_scaled_priors() {
         "no UP/DOWN redirect in 400 seeds — priors likely fed unnormalized"
     );
 }
+
+/// Round-11 (spec-diff D2): when the forced dedup-retry itself pushes the
+/// total past max_frames and the second legalize re-clamps, post_clamp must
+/// report it. Construct the window: a single-segment base at exactly
+/// max_frames with op_probs forcing swap_adjacent (a no-op on one segment,
+/// guaranteeing the identical-mutant retry fires); scan seeds until a retry
+/// z-draw lengthens the segment.
+#[test]
+fn post_clamp_reports_retry_induced_reclamp() {
+    let cfg = common::mutation_cfg_forced_op("swap_adjacent");
+    let model = model_for(&cfg);
+    let base = PadBurst {
+        segments: vec![PadSegment {
+            buttons: 1,
+            hold_frames: cfg.burst_len.max_frames,
+        }],
+    };
+    let mut found = false;
+    for seed in 0..2000u64 {
+        let ctx = common::ctx_with_parent("d2-node", base.clone());
+        let root = fanout_root(seed, &ctx.node_id);
+        let (_, prov) = mutation::generate(&cfg, &ctx, &root, 0, &model);
+        let retried = prov
+            .ops
+            .iter()
+            .any(|op| op.args.iter().any(|(k, v)| k == "retry" && v == "1"));
+        if retried && prov.post_clamp {
+            found = true;
+            break;
+        }
+    }
+    assert!(
+        found,
+        "no seed in 2000 produced a retry-induced re-clamp with post_clamp=true \
+         — either the window is unreachable or post_clamp under-reports"
+    );
+}

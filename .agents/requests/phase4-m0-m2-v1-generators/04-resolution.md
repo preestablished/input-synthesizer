@@ -1,7 +1,7 @@
 # Resolution — Phase 4 M0–M2 v1 Generators (+M3)
 
 **Final state (read this first):** branch `phase4-v1-generators` HEAD;
-`cargo test --workspace` = 119 tests / 22 suites green; authoritative
+`cargo test --workspace` = 120 tests / 22 suites green; authoritative
 dual-arch CI evidence = the newest green run on the branch (every push
 triggers one; a documentation-only commit like the final sign-off edits
 necessarily trails its own run by one — check `gh run list` for the
@@ -10,7 +10,7 @@ head's conclusion). Run ids: 29181386490 (`ab36bb4`), 29195495676
 (`6d41748`), 29199743592 (`ab1e528`), 29200931736 (`ee17797`),
 29202385874 (`e096e47`), 29204053262 (`498bc6c`), 29205449380
 (`6ebf5a5`) — all success on both arches. Since the original handback
-(`20c8e0d`), ten review rounds landed fixes — all documented in the
+(`20c8e0d`), eleven review rounds landed fixes — all documented in the
 round sections; per-round test counts in those sections are scoped to
 their round's SHA, not the final tree.
 
@@ -385,10 +385,37 @@ whitespace. The cold reviewer's overall verdict: "solid, unusually
 well-hardened; the wire boundary is genuinely panic-free as far as I can
 trace."
 
+## Review round 11 (final)
+
+An adversarial verification of round 10 and a COLD spec-conformance diff
+of macros/mutation against ARCHITECTURE §5 + API §3/§2.4 (the reviewer saw
+only spec and code). Round-10 verification: CONFIRMED throughout, including
+the numeric heart of the normalization claim — the default priors sum to
+bit-exact 1.0 (hex-checked), and the one golden config whose sum is one ULP
+short (`variant_direction_priors`, 0.9999999999999999) provably never
+reaches the fixed path; its version-bump analysis concluded no bump is
+warranted (bug fix to contract-violating behavior; zero golden bytes
+changed) — accepted. The spec-diff verified every quantitative requirement
+exact (all seven operator probabilities, n_ops formula, U(0.1,0.5),
+inclusive splice boundaries, donor weighting, rounding) and found two
+deviations: **D2, fixed** — `post_clamp` was computed before the first
+legalize and missed a re-clamp caused by the forced dedup-retry itself
+(narrow window: identical-mutant path with the base at a length bound);
+now OR-ed with the retry total's bounds check, with a directed
+seed-scan test. **D1, pinned as v1 scope** — pack eligibility accepts
+feature predicates only, narrower than §5.1's "same predicate language as
+§4.4"; ARCHITECTURE §5.1 now states the v1 narrowing with a dated comment
+(implementing history predicates in packs awaits a consumer). Ambiguities
+the code had already documented are now pinned in API.md: chain_n>1
+provenance records element 0 with macro_frames spanning the chain (§2.4);
+`no_eligible_macros` added to the degraded-reason list (§2.1). The
+spec-diff's fifteen SPEC-SILENT implementation choices are recorded in its
+report; none contradicts the spec.
+
 ## Verification pointers
 
 Clean checkout at the HEAD of branch `phase4-v1-generators`: `cargo test
---workspace` (119 tests / 22
+--workspace` (120 tests / 22
 suites; needs the sibling `control-plane` checkout at `proto-v0.2.0`);
 golden recorder modes are `--ignored` tests; the CI golden↔version rule's
 synthetic-violation reproduction is documented in

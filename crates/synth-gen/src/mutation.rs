@@ -926,7 +926,7 @@ pub fn generate(
     }
 
     let pre_total = segments_total_frames(&segments);
-    let post_clamp =
+    let mut post_clamp =
         pre_total < u64::from(model.min_frames()) || pre_total > u64::from(model.max_frames());
     let legalized = model.legalize(Burst::Pad(PadBurst { segments }));
     let Burst::Pad(PadBurst {
@@ -949,6 +949,13 @@ pub fn generate(
         rec.args.push(("retry".to_owned(), "1".to_owned()));
         rec.args = sorted_args(rec.args);
         ops.push(rec);
+        // The retry itself can push the total out of bounds, and the second
+        // legalize then re-clamps — API §2.4's post_clamp must report that
+        // too (round-11 spec-diff, D2).
+        let retry_total = segments_total_frames(&retried_segments);
+        post_clamp = post_clamp
+            || retry_total < u64::from(model.min_frames())
+            || retry_total > u64::from(model.max_frames());
         let relegalized = model.legalize(Burst::Pad(PadBurst {
             segments: retried_segments,
         }));
