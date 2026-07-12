@@ -3,16 +3,29 @@
 **Final state (read this first):** branch `phase4-v1-generators` HEAD;
 `cargo test --workspace` = 122 tests / 22 suites green; authoritative
 dual-arch CI evidence = the newest green run on the branch (every push
-triggers one; a documentation-only commit like the final sign-off edits
-necessarily trails its own run by one — check `gh run list` for the
-head's conclusion). Run ids: 29181386490 (`ab36bb4`), 29195495676
-(`c9851c3`), 29197027014 (`a9197dd`, covers round 2), 29198388598
-(`6d41748`), 29199743592 (`ab1e528`), 29200931736 (`ee17797`),
-29202385874 (`e096e47`), 29204053262 (`498bc6c`), 29205449380
-(`6ebf5a5`) — all success on both arches. Since the original handback
-(`20c8e0d`), fourteen review rounds landed fixes — all documented in the
-round sections; per-round test counts in those sections are scoped to
-their round's SHA, not the final tree.
+triggers one; a documentation-only commit necessarily trails its own run
+by one — check `gh run list` for the head's conclusion). Per-round map
+(every run success on both arches); per-round test counts in the round
+sections are scoped to their round's SHA, not the final tree:
+
+| Round | SHA | CI run | One-line outcome |
+|---|---|---|---|
+| — (v1 handback) | `ab36bb4` | 29181386490 | M0–M3 + v1 gate landed |
+| 1 | `c9851c3` | 29195495676 | 2 wire panics + 2 fingerprint holes fixed; 0.2.0 |
+| 2 | `9353272` | 29197027014 (on `a9197dd`) | pack-name determinism; ops hardening; smoke rerun |
+| 3 | `6d41748` | 29198388598 | id-first pack lookup; clean verifier dry-run |
+| 4 | `ab1e528` | 29199743592 | Health.loaded_packs names+ids (consumer blocker) |
+| 5 | `ee17797` | 29200931736 | raw-segment contract fixtures; pad-table casing |
+| 6 | `e096e47` | 29202385874 | handback coherence; fixture self-containment |
+| 7 | `498bc6c` | 29204053262 | quadratic composition fixed; request budgets |
+| 8 | `6ebf5a5` | 29205449380 | differential proof; final-code smoke |
+| 9 | `b96f56b` | 29206606422 | sign-off simulation approved; citation fixes |
+| 10 | `00efa09` | 29207905993 | cold-pass bug: flip_button prior normalization |
+| 11 | `f9e2479` | 29209111619 | post_clamp retry re-clamp fix; spec pins |
+| 12 | `8d88dbb` | 29210300455 | generator_mix zero-fill; §5 addendum pinned |
+| 13 | `5b3f02d` | 29211515814 | schema-wide deny_unknown_fields; spec coverage complete |
+| 14 | `7dc73d2` | 29212707663 | cross-repo config blocker raised (their `kk2`) |
+| 15 | this commit | (trails by one) | navigational fixes from artifact + reader audits |
 
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
@@ -46,6 +59,9 @@ checkout at `ref: proto-v0.2.0`. No change requests to control-plane needed.
 
 ## Seed-rule reconciliation (bead `isj`)
 
+(Bead shorthand used below: `isj` = `exploration-orchestrator-isj`,
+`cww` = `exploration-orchestrator-cww`, `kk2` =
+`exploration-orchestrator-kk2` — all in the orchestrator's repo.)
 INTEGRATION.md "(2) Seed derivation" replaced: the stale
 `blake3(experiment_seed ‖ node_id ‖ expansion_counter)[..8]` is now the
 orchestrator's implemented rule — `derive_synth_request_seed` = first
@@ -105,7 +121,9 @@ pending debt. Fast-forwarding `main` to the branch is left to the operator.
 
 ## v1 gate evidence
 
-`docs/evidence/v1-smoke-2026-07-12.md` + transcript. Summary: image
+`docs/evidence/v1-smoke-2026-07-12.md` + transcript. (Digest note for
+every image table in this document: digests are SHA-traceable, not
+bit-identical across rebuilds — see Verification pointers.) Summary: image
 `sha256:81400279ce70…` (from `eaa7ea9` + control-plane `proto-v0.2.0` via
 `scripts/build-image.sh`); 1,000 consecutive `ProposeBursts` (k=32) against
 the running container, driven through **exploration-orchestrator's own
@@ -120,10 +138,12 @@ validation), fingerprint stable across all calls**. Harness vendored at
    request; unblocked by reference-workload's corpus fulfillment
    (`refwork-czi` / `refwork-5tk`).
 2. The same rerun should be driven through the orchestrator's **served**
-   dev loop with the **hypervisor-side** illegal-burst counter once their
-   async transport adapter lands (`exploration-orchestrator-cww` — their
-   half of this wiring). The Phase 3 stack was verified running on this
-   host during the smoke.
+   dev loop with a consumer-side illegal-burst counter (which does not
+   exist yet anywhere — see round 5). Named preconditions on their side,
+   in order: `exploration-orchestrator-kk2` (their experiment-config
+   fixtures fail this service's real schema — see round 14), then
+   `exploration-orchestrator-cww` (their async transport adapter). The
+   Phase 3 stack was verified running on this host during the smoke.
 
 ## M3 status
 
@@ -267,8 +287,8 @@ validation-counter gap sharpened in open item 2).
 
 ## Review round 6 (`e096e47`)
 
-(Restored as its own section in round 10 — this round's record had been
-folded into the Final-state block and evidence-doc edits.) A
+(This section was reconstructed after the fact; round 6's record
+originally lived only in the Final-state block and evidence-doc edits.) A
 fixture-consumer verification and a handback coherence audit. The consumer
 check independently reproduced all 12 contract-fixture burst_id hashes with
 a from-scratch binary, found zero invariant violations, and judged WR-only
@@ -342,7 +362,7 @@ evade), default and smoke shapes unaffected, five poison-recovery sites
 with no cross-field write to corrupt, sibling cap checked pre-decode.
 One cosmetic fix: stray whitespace in the budget error message.
 
-## Review round 9 (final)
+## Review round 9 (`b96f56b`)
 
 Two closing checks. (1) **Vacuity audit of the round-8 differential
 test** (the sharpest remaining risk: an agent-written test verifying an
@@ -360,7 +380,7 @@ transcripts to the microsecond, seed-rule parity, owner-doc fixes, beads,
 golden-gate fail/pass legs) — verdict: **sign off, approved as written**,
 bouncing only the stale round-7/8 self-citations fixed in this commit.
 
-## Review round 10 (final)
+## Review round 10 (`00efa09`)
 
 A findings-ledger reconciliation (all 57 findings from rounds 1–9 verified
 against the tree: 55 fully in place, 2 audit-trail-only gaps fixed here —
@@ -385,7 +405,7 @@ whitespace. The cold reviewer's overall verdict: "solid, unusually
 well-hardened; the wire boundary is genuinely panic-free as far as I can
 trace."
 
-## Review round 11 (final)
+## Review round 11 (`f9e2479`)
 
 An adversarial verification of round 10 and a COLD spec-conformance diff
 of macros/mutation against ARCHITECTURE §5 + API §3/§2.4 (the reviewer saw
@@ -412,7 +432,7 @@ provenance records element 0 with macro_frames spanning the chain (§2.4);
 spec-diff's fifteen SPEC-SILENT implementation choices are recorded in its
 report; none contradicts the spec.
 
-## Review round 12 (final)
+## Review round 12 (`8d88dbb`)
 
 Cold spec-diffs of the remaining halves plus adversarial verification of
 round 11. The sampler/mixer/conditioning half (ARCHITECTURE §3.1 + §4 in
@@ -434,7 +454,7 @@ addendum (accumulated over rounds 7–11: finiteness, range bounds,
 op-prob key/value rules, per-request budgets) is now pinned at the end of
 API §5 so the doc's validation list matches the implementation.
 
-## Review round 13 (final)
+## Review round 13 (`5b3f02d`)
 
 The last uncovered spec slices (ARCHITECTURE §2/§2.1/§6.2-step-1/§8 server
 shell + INTEGRATION §7's failure-mode table) were cold-diffed: **fully
@@ -457,7 +477,7 @@ addendum carries the parse-only-in-v1 carve-out; (3) API §5.2's
 only (overrides deep-merge onto a fully-populated base — siblings are
 preserved, never zeroed).
 
-## Review round 14 (final)
+## Review round 14 (`7dc73d2`)
 
 Two audits of the round-13 strictness change and its blast radius. The
 delta verification: exactly correct 17-struct application (untagged/
@@ -485,6 +505,23 @@ FakeSynth schema-faithful), wired as a BLOCKER of their `cww` transport
 bead with a comment. Open item 2 (served-loop smoke) therefore now has two
 named preconditions on their side: `kk2` then `cww`. Nothing changes in
 this repo — the schema matches its own specification.
+
+## Review round 15 (this commit)
+
+Two closing audits: an artifact verification of round 14 (all nine `kk2`
+sites, the FakeSynth scanner mechanism, and the bring-up wiring chain
+verified in their repo; the dependency direction confirmed kk2-blocks-cww;
+the parse failure independently reproduced with the exact error) and a
+fresh-eyes reader pass over this document as its consumer. Both flagged
+the same navigational debt, applied here: the per-round changelog table
+above (replacing a run-id list that had silently gone stale at round 8),
+the misleading "(final)" heading labels removed from rounds 9–14, open
+item 2 updated in place with the kk2→cww precondition chain, the digest
+caveat forward-referenced at the first image table, the round-6 note
+rephrased, and bead shorthand glossed at first use. No code changes; the
+reader pass's verdict: "solid working handback ... the failure mode is
+purely navigational," with the proto-audit and exit-gate sections called
+exemplary.
 
 ## Verification pointers
 
