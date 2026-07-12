@@ -1,0 +1,13 @@
+version: 1
+kind: macro_pack
+name: scale-min-gt-max-pack
+model: pad
+button_alphabet: console16-12btn-v1
+source: handwritten
+macros:
+  - name: bad-scale-range
+    weight: 1.0
+    params:
+      - { name: scale, domain: { scale: { min: 1.25, max: 0.8 } } }
+    steps:
+      - { hold: [B], frames: 10 }

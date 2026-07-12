@@ -213,6 +213,7 @@ fn run_case(spec: &CaseSpec) -> (Vec<String>, String) {
         spec.length_hint,
         spec.seed,
         Availability::default(),
+        None,
     );
     assert!(
         degraded.is_empty(),

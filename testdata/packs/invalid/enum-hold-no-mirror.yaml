@@ -1,0 +1,14 @@
+version: 1
+kind: macro_pack
+name: enum-hold-no-mirror-pack
+model: pad
+button_alphabet: console16-12btn-v1
+source: handwritten
+macros:
+  - name: missing-mirror
+    weight: 1.0
+    params:
+      - { name: dir, domain: { enum: [left, right] } }
+    steps:
+      - { hold: [dir, B], frames: 10 }
+    # mirror map deliberately omitted

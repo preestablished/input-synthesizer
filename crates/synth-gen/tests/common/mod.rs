@@ -197,6 +197,38 @@ pub fn ctx_full(node_id: &str) -> GenContext {
     }
 }
 
+/// `base_yaml` with the generator mix set to pure macro (`{macro: 1.0}`) and
+/// `macro.packs` set to `pack_names`, for the macro_suite/golden_macro test
+/// binaries. `chain_n`/`pad_to_length` stay at their config defaults (1,
+/// true) unless the caller `deep_merge`s further overrides onto the result.
+pub fn macro_cfg(pack_names: &[&str]) -> ExperimentConfig {
+    let base = parse_and_validate(&base_yaml(0.25));
+    let list = format!(
+        "[{}]",
+        pack_names
+            .iter()
+            .map(|n| format!("{n:?}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    let overrides = format!(
+        r#"
+generator_mix:
+  weighted_random: 0.0
+  macro: 1.0
+  mutation: 0.0
+  policy: 0.0
+macro:
+  packs: {list}
+  pad_to_length: true
+  chain_n: 1
+"#
+    );
+    let merged = deep_merge(&base, overrides.as_bytes()).expect("deep_merge macro overrides");
+    validate(&merged).expect("merged macro config must be valid");
+    merged
+}
+
 pub fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }

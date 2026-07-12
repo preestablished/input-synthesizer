@@ -1416,6 +1416,7 @@ dependencies = [
  "statrs",
  "synth-core",
  "synth-pad",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

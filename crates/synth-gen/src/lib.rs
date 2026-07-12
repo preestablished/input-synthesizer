@@ -8,6 +8,7 @@
 //! change that bumps `SYNTH_VERSION` and regenerates goldens.
 
 pub mod context;
+pub mod macros;
 pub mod mixer;
 pub mod propose;
 pub mod provenance;

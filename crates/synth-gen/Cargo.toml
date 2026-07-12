@@ -10,10 +10,11 @@ synth-pad = { workspace = true }
 rand_core = { workspace = true }
 rand_chacha = { workspace = true }
 indexmap = { workspace = true }
+blake3 = { workspace = true }
+serde = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
 statrs = { workspace = true }
-blake3 = { workspace = true }
-serde = { workspace = true }
-serde_yaml = { workspace = true }

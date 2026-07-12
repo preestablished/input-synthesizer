@@ -206,11 +206,11 @@ impl InputSynthesizer for SynthService {
             recent_inputs,
         };
 
-        let availability = Availability {
-            macros_loaded: false,
-            has_parent_burst,
-        };
+        let availability = Availability { has_parent_burst };
 
+        // Macro packs are not yet loadable through this server shell
+        // (`LoadMacroPack` rejects `DOCUMENT_KIND_MACRO_PACK` below); a
+        // follow-up wires a `PackRegistry` into `State` and resolves it here.
         let (results, degraded) = propose(
             &effective_cfg,
             &gen_ctx,
@@ -218,6 +218,7 @@ impl InputSynthesizer for SynthService {
             req.length_hint,
             req.seed,
             availability,
+            None,
         );
 
         let fingerprint =

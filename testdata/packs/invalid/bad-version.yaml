@@ -1,0 +1,11 @@
+version: 2
+kind: macro_pack
+name: bad-version-pack
+model: pad
+button_alphabet: console16-12btn-v1
+source: handwritten
+macros:
+  - name: tap-a
+    weight: 1.0
+    steps:
+      - { hold: [A], frames: 4 }
