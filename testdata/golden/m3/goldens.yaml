@@ -1,0 +1,230 @@
+synth_version: 0.1.0
+cases:
+- name: perturb_timing_forced
+  seed: 200
+  burst_id: 16d355612758b1c5f99d406a51398e5c653d903dc193eaefd0debb957497db9d
+  base_burst_id: ed768810ae52f976944fd1ca1db741ae3a8bc5bf8834fea7ee84c157134ebd07
+  donor_burst_id: ''
+  base_was_sibling: false
+  post_clamp: false
+  ops:
+  - op: perturb_timing
+    args:
+    - - fired_segments
+      - 1,3,5
+    - - z_bits
+      - 4000b0d6671ca7fd,3ff37b169177a806,3fbcb998e4ba07cc
+- name: extend_forced
+  seed: 201
+  burst_id: f15ab3fa8aac936582e576a8371dd8d7522368833cc4d66c51ac7ecee1bee7c1
+  base_burst_id: ed768810ae52f976944fd1ca1db741ae3a8bc5bf8834fea7ee84c157134ebd07
+  donor_burst_id: ''
+  base_was_sibling: false
+  post_clamp: false
+  ops:
+  - op: extend
+    args:
+    - - appended
+      - 8:8;8:4;0:67
+    - - m
+      - '3'
+  - op: extend
+    args:
+    - - appended
+      - 0:5;1:37;1:12;1:7
+    - - m
+      - '4'
+  - op: extend
+    args:
+    - - appended
+      - 1:3;9:20;1:12
+    - - m
+      - '3'
+- name: flip_button_forced
+  seed: 202
+  burst_id: d09f03662faa865b6e3cf98f41e12b7c9b10a5a3a0ddfdb46685b03bd2c44d60
+  base_burst_id: ed768810ae52f976944fd1ca1db741ae3a8bc5bf8834fea7ee84c157134ebd07
+  donor_burst_id: ''
+  base_was_sibling: false
+  post_clamp: false
+  ops:
+  - op: flip_button
+    args:
+    - - repeats
+      - 1,2,toggle;4,9,redirect,512;1,5,toggle
+  - op: flip_button
+    args:
+    - - repeats
+      - 5,6,redirect,512;5,3,toggle;4,4,toggle
+- name: splice_forced_with_siblings
+  seed: 203
+  burst_id: 4f1534c317167fc09bbc1ed1618f4bb1f1eb4ec62d4fe7a35e8db63a1b4842b2
+  base_burst_id: 7c0329d197ceb9ff973491633b7d6a4f013e0817c1c86ae69fef7be2aca7ff1d
+  donor_burst_id: 7c0329d197ceb9ff973491633b7d6a4f013e0817c1c86ae69fef7be2aca7ff1d
+  base_was_sibling: true
+  post_clamp: true
+  ops:
+  - op: splice
+    args:
+    - - donor_burst_id
+      - 7c0329d197ceb9ff973491633b7d6a4f013e0817c1c86ae69fef7be2aca7ff1d
+    - - i
+      - '0'
+    - - j
+      - '3'
+- name: splice_forced_fallback_to_extend
+  seed: 204
+  burst_id: 56ff52dc0ab936a2f43a0ce000e7b23f84dc0e44a796573f49ebbe573f845a5b
+  base_burst_id: ed768810ae52f976944fd1ca1db741ae3a8bc5bf8834fea7ee84c157134ebd07
+  donor_burst_id: ''
+  base_was_sibling: false
+  post_clamp: false
+  ops:
+  - op: extend
+    args:
+    - - appended
+      - 8:2;9:3
+    - - m
+      - '2'
+  - op: extend
+    args:
+    - - appended
+      - 9:17;24:3;26:7;10:26
+    - - m
+      - '4'
+- name: truncate_forced
+  seed: 205
+  burst_id: b2776b66c74380169dc2be1fe8f564e12012a24a6ae6c0c7b1cdc50136bbe843
+  base_burst_id: ed768810ae52f976944fd1ca1db741ae3a8bc5bf8834fea7ee84c157134ebd07
+  donor_burst_id: ''
+  base_was_sibling: false
+  post_clamp: true
+  ops:
+  - op: truncate
+    args:
+    - - frames_dropped
+      - '28'
+    - - u_bits
+      - 3fdd9f9697853848
+  - op: truncate
+    args:
+    - - frames_dropped
+      - '12'
+    - - u_bits
+      - 3fd740483a390b1c
+  - op: truncate
+    args:
+    - - frames_dropped
+      - '5'
+    - - u_bits
+      - 3fce1a15cda3c6e5
+  - op: truncate
+    args:
+    - - frames_dropped
+      - '4'
+    - - u_bits
+      - 3fcef8f30f863a24
+- name: duplicate_segment_forced
+  seed: 206
+  burst_id: d9be5688f32577b111960822b246d071f47775bb146bda20e58bce85a9a36524
+  base_burst_id: ed768810ae52f976944fd1ca1db741ae3a8bc5bf8834fea7ee84c157134ebd07
+  donor_burst_id: ''
+  base_was_sibling: false
+  post_clamp: false
+  ops:
+  - op: duplicate_segment
+    args:
+    - - run
+      - 5,1,3
+  - op: duplicate_segment
+    args:
+    - - run
+      - 7,2,3
+  - op: duplicate_segment
+    args:
+    - - run
+      - 12,1,2
+- name: swap_adjacent_forced
+  seed: 207
+  burst_id: b2b35fe0ba6e1fc26efa5179bb2fce0a88932e13d0145d438821ebe3e3af8a27
+  base_burst_id: ed768810ae52f976944fd1ca1db741ae3a8bc5bf8834fea7ee84c157134ebd07
+  donor_burst_id: ''
+  base_was_sibling: false
+  post_clamp: false
+  ops:
+  - op: swap_adjacent
+    args:
+    - - boundary
+      - '3'
+  - op: swap_adjacent
+    args:
+    - - boundary
+      - '0'
+- name: default_mix_parent_only
+  seed: 300
+  burst_id: ed963d9a6db59884a19d72a3bbb5ffc4d45fe6e2640cc6a1ff2e04958a25e9f2
+  base_burst_id: ed768810ae52f976944fd1ca1db741ae3a8bc5bf8834fea7ee84c157134ebd07
+  donor_burst_id: ''
+  base_was_sibling: false
+  post_clamp: false
+  ops:
+  - op: flip_button
+    args:
+    - - repeats
+      - 5,6,redirect,512;5,6,redirect,512
+- name: default_mix_siblings_only
+  seed: 301
+  burst_id: 7a49f6be4c8dcd0857416e0aea8df3adeb7e6a5016ce7cc57311c7d1fab96a5f
+  base_burst_id: 7c0329d197ceb9ff973491633b7d6a4f013e0817c1c86ae69fef7be2aca7ff1d
+  donor_burst_id: ''
+  base_was_sibling: true
+  post_clamp: false
+  ops:
+  - op: perturb_timing
+    args:
+    - - fired_segments
+      - '2'
+    - - z_bits
+      - 3fd671be2c558f5b
+- name: default_mix_parent_and_siblings_a
+  seed: 302
+  burst_id: a6af93232fd17f23c68beba5215efec7eeb7ae419eb3a4936113ad7a7598b56d
+  base_burst_id: ed768810ae52f976944fd1ca1db741ae3a8bc5bf8834fea7ee84c157134ebd07
+  donor_burst_id: ''
+  base_was_sibling: false
+  post_clamp: false
+  ops:
+  - op: perturb_timing
+    args:
+    - - fired_segments
+      - 0,1,3,5
+    - - z_bits
+      - bfe13f41fc24e1d2,bfcda5b1dc230b08,400001ac04d32fb0,bfbba649b7de4ac7
+  - op: flip_button
+    args:
+    - - repeats
+      - 1,2,toggle;1,6,redirect,512
+- name: default_mix_parent_and_siblings_b
+  seed: 303
+  burst_id: c4a8db3fdc7081b7303d66fcecbc802dff0f05bb7792e999345da7602a823451
+  base_burst_id: ed768810ae52f976944fd1ca1db741ae3a8bc5bf8834fea7ee84c157134ebd07
+  donor_burst_id: ''
+  base_was_sibling: false
+  post_clamp: false
+  ops:
+  - op: extend
+    args:
+    - - appended
+      - 8:4;8:12;0:35;1024:2
+    - - m
+      - '4'
+  - op: perturb_timing
+    args:
+    - - fired_segments
+      - 0,1,3,8,9
+    - - z_bits
+      - bfd0ad9a9ac169e8,3fe163a97e8153c1,3fc5bdaa31e2788c,c001436ca5459097,bfe55666b7719458
+  - op: flip_button
+    args:
+    - - repeats
+      - 3,3,toggle;2,6,redirect,512;1,11,toggle

@@ -32,6 +32,33 @@ pub struct MacroProvenance {
     pub chain_index: u32,
 }
 
+/// One applied mutation operator (API.md §2.4 `MutationOp`): the op name
+/// plus every sampled argument, stringified deterministically. `args` is
+/// sorted by key (never a proto `map<>` in decision paths — API.md §2.4's
+/// wire `map<string,string>` is built from this sorted `Vec` at the server
+/// boundary, same convention as `MacroProvenance.param_bindings`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct MutationOpRec {
+    pub op: String,
+    /// Sorted by key.
+    pub args: Vec<(String, String)>,
+}
+
+/// Domain form of API.md §2.4 `MutationProvenance` (ARCHITECTURE.md §5.2).
+#[derive(Clone, Debug, PartialEq)]
+pub struct MutationProvenance {
+    /// The parent or sibling burst this mutant started from.
+    pub base_burst_id: [u8; 32],
+    /// The splice donor, if any op used one.
+    pub donor_burst_id: Option<[u8; 32]>,
+    pub base_was_sibling: bool,
+    /// In application order; the forced retry pass (if triggered) is
+    /// appended last with an extra `("retry", "1")` arg.
+    pub ops: Vec<MutationOpRec>,
+    /// Whether post-op length clamping changed anything.
+    pub post_clamp: bool,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Provenance {
     pub generator: GeneratorKind,
@@ -40,7 +67,8 @@ pub struct Provenance {
     pub rng_stream: String,
     pub fallback_from: Option<GeneratorKind>,
     pub macro_: Option<MacroProvenance>,
-    // MutationProvenance lands with M3; PolicyProvenance with M6.
+    pub mutation: Option<MutationProvenance>,
+    // PolicyProvenance lands with M6.
 }
 
 /// A generator whose weight was reallocated for a request, and why.

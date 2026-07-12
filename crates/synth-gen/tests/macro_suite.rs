@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use synth_core::types::Burst;
 use synth_gen::context::GenContext;
 use synth_gen::macros::{self, MacroPackError, PackRegistry};
-use synth_gen::propose::{propose, Availability};
+use synth_gen::propose::propose;
 
 fn testdata_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/packs")
@@ -379,17 +379,7 @@ generator_mix: { weighted_random: 0.5, macro: 0.5, mutation: 0.0, policy: 0.0 }
         ..Default::default()
     };
 
-    let run = || {
-        propose(
-            &cfg,
-            &ctx,
-            32,
-            300,
-            0xE2E_5EED,
-            Availability::default(),
-            Some(&resolved),
-        )
-    };
+    let run = || propose(&cfg, &ctx, 32, 300, 0xE2E_5EED, Some(&resolved));
     let (results_a, degraded_a) = run();
     let (results_b, degraded_b) = run();
     assert!(degraded_a.is_empty());

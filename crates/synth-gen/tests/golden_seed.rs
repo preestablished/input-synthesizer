@@ -14,7 +14,7 @@ mod common;
 use serde::{Deserialize, Serialize};
 use synth_core::config::ExperimentConfig;
 use synth_core::types::burst_hash;
-use synth_gen::propose::{propose, Availability, SlotResult};
+use synth_gen::propose::{propose, SlotResult};
 
 const CASE_COUNT: usize = 50;
 
@@ -206,15 +206,7 @@ fn case_digest(burst_ids: &[String], results: &[SlotResult]) -> String {
 fn run_case(spec: &CaseSpec) -> (Vec<String>, String) {
     let cfg = config_for(spec.config);
     let ctx = ctx_for(spec.context, "golden-node");
-    let (results, degraded) = propose(
-        &cfg,
-        &ctx,
-        spec.k,
-        spec.length_hint,
-        spec.seed,
-        Availability::default(),
-        None,
-    );
+    let (results, degraded) = propose(&cfg, &ctx, spec.k, spec.length_hint, spec.seed, None);
     assert!(
         degraded.is_empty(),
         "case {}: pure-WR generator_mix should never report degraded generators",

@@ -28,7 +28,7 @@ use statrs::distribution::{ChiSquared, ContinuousCDF};
 use synth_core::config::ExperimentConfig;
 use synth_core::fmath;
 use synth_core::types::{Burst, PadBurst};
-use synth_gen::propose::{propose, Availability, SlotResult};
+use synth_gen::propose::{propose, SlotResult};
 
 const N: usize = 2000;
 const LENGTH_HINT: u32 = 300;
@@ -83,15 +83,7 @@ fn large_corpus() -> &'static Vec<SlotResult> {
     CORPUS.get_or_init(|| {
         let cfg = large_target_cfg();
         let ctx = common::ctx_free("stats-node-large");
-        let (results, degraded) = propose(
-            cfg,
-            &ctx,
-            LARGE_N,
-            LARGE_LENGTH_HINT,
-            LARGE_SEED,
-            Availability::default(),
-            None,
-        );
+        let (results, degraded) = propose(cfg, &ctx, LARGE_N, LARGE_LENGTH_HINT, LARGE_SEED, None);
         assert!(degraded.is_empty());
         results
     })
@@ -105,15 +97,7 @@ fn corpus() -> &'static Vec<SlotResult> {
     CORPUS.get_or_init(|| {
         let cfg = stats_cfg();
         let ctx = common::ctx_free("stats-node");
-        let (results, degraded) = propose(
-            cfg,
-            &ctx,
-            N,
-            LENGTH_HINT,
-            BASE_SEED,
-            Availability::default(),
-            None,
-        );
+        let (results, degraded) = propose(cfg, &ctx, N, LENGTH_HINT, BASE_SEED, None);
         assert!(
             degraded.is_empty(),
             "pure-WR generator_mix should never report degraded generators"
@@ -533,24 +517,8 @@ fn context_rule_boss_hp_shifts_y_duty() {
     let ctx_free = common::ctx_free("ctx-node");
     let ctx_boss = common::ctx_with_boss_hp("ctx-node", 100.0);
 
-    let (free_results, _) = propose(
-        &cfg,
-        &ctx_free,
-        n,
-        LENGTH_HINT,
-        BASE_SEED ^ 0xA1,
-        Availability::default(),
-        None,
-    );
-    let (boss_results, _) = propose(
-        &cfg,
-        &ctx_boss,
-        n,
-        LENGTH_HINT,
-        BASE_SEED ^ 0xA1,
-        Availability::default(),
-        None,
-    );
+    let (free_results, _) = propose(&cfg, &ctx_free, n, LENGTH_HINT, BASE_SEED ^ 0xA1, None);
+    let (boss_results, _) = propose(&cfg, &ctx_boss, n, LENGTH_HINT, BASE_SEED ^ 0xA1, None);
 
     let y_bit = common::bit(&cfg, "Y");
     let y_mask = 1u16 << y_bit;
@@ -600,24 +568,8 @@ fn context_rule_start_refractory_suppresses_presses() {
     let ctx_free = common::ctx_free("refractory-node");
     let ctx_start = common::ctx_with_start_press("refractory-node");
 
-    let (free_results, _) = propose(
-        &cfg,
-        &ctx_free,
-        n,
-        LENGTH_HINT,
-        BASE_SEED ^ 0xB2,
-        Availability::default(),
-        None,
-    );
-    let (cond_results, _) = propose(
-        &cfg,
-        &ctx_start,
-        n,
-        LENGTH_HINT,
-        BASE_SEED ^ 0xB2,
-        Availability::default(),
-        None,
-    );
+    let (free_results, _) = propose(&cfg, &ctx_free, n, LENGTH_HINT, BASE_SEED ^ 0xB2, None);
+    let (cond_results, _) = propose(&cfg, &ctx_start, n, LENGTH_HINT, BASE_SEED ^ 0xB2, None);
 
     let start_bit = common::bit(&cfg, "START");
     let start_mask = 1u16 << start_bit;
