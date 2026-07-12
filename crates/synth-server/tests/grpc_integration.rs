@@ -1172,3 +1172,39 @@ async fn oversized_context_is_rejected_with_clear_errors() {
 
     server.shutdown().await;
 }
+
+/// Round-10: non-finite sibling score_delta is rejected (an inf delta would
+/// deterministically invert donor selection to "always the last sibling").
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn non_finite_sibling_score_delta_is_rejected() {
+    let server = TestServer::start().await;
+    let mut client = server.client().await;
+    client
+        .load_macro_pack(load_request(minimal_config_bytes()))
+        .await
+        .expect("load config");
+
+    let pad = Burst::Pad(PadBurst {
+        segments: vec![PadSegment {
+            buttons: 0,
+            hold_frames: 16,
+        }],
+    });
+    let mut req = propose_request("exp-test", 1, "n", 7);
+    req.node_context.as_mut().unwrap().sibling_bursts = vec![synth_proto::v1::ScoredBurst {
+        burst: Some(synth_proto::v1::ProvenancedBurst {
+            burst: Some(to_proto(&pad, "console16-12btn-v1")),
+            provenance: None,
+        }),
+        score_delta: f64::INFINITY,
+    }];
+    let err = client.propose_bursts(req).await.expect_err("must reject");
+    assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    assert!(
+        err.message().contains("score_delta must be finite"),
+        "{}",
+        err.message()
+    );
+
+    server.shutdown().await;
+}

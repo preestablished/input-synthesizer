@@ -438,13 +438,25 @@ fn sample_flip_button(
         .button_alphabet
         .mask(&cfg.button_alphabet.directions.group)
         .unwrap_or(0);
-    let dir_priors: Vec<(String, f64)> = cfg
+    // Normalized: priors are weights (the direction process renormalizes,
+    // ARCHITECTURE §4.4), and `categorical` assumes a sum of 1 — feeding it
+    // raw weights zeroes late-declared directions for sum > 1 and dumps
+    // residual mass on the last for sum < 1 (round-10 cold review). Dividing
+    // by an exact 1.0 sum is a bitwise no-op, so sum-1 configs (all goldens)
+    // are unchanged.
+    let mut dir_priors: Vec<(String, f64)> = cfg
         .weighted_random
         .direction
         .priors
         .iter()
         .map(|(k, v)| (k.clone(), *v))
         .collect();
+    let prior_sum: f64 = dir_priors.iter().map(|(_, w)| w).sum();
+    if prior_sum > 0.0 {
+        for (_, w) in &mut dir_priors {
+            *w /= prior_sum;
+        }
+    }
     let buttons = &cfg.button_alphabet.buttons;
     let seg_count = segments.len();
 
