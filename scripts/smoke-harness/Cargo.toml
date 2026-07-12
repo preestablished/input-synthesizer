@@ -1,0 +1,15 @@
+[package]
+name = "synth-smoke"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+orch-driver = { path = "../../../exploration-orchestrator/crates/orch-driver", features = ["grpc"] }
+orch-clients = { path = "../../../exploration-orchestrator/crates/orch-clients" }
+orch-core = { path = "../../../exploration-orchestrator/crates/orch-core" }
+blake3 = "1"
+
+[profile.release]
+debug = false
