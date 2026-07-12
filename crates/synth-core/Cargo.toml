@@ -5,4 +5,17 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-synth-proto = { path = "../synth-proto" }
+synth-proto = { workspace = true }
+blake3 = { workspace = true }
+rand_core = { workspace = true }
+rand_chacha = { workspace = true }
+libm = { workspace = true }
+serde = { workspace = true }
+serde_yaml = { workspace = true }
+indexmap = { workspace = true }
+postcard = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+prost = { workspace = true }
