@@ -1,0 +1,86 @@
+# Full experiment_config exercising every section of API.md §5, using the
+# values from the API.md §5 example document verbatim.
+version: 1
+kind: experiment_config
+experiment_id: exp-firstboss-04        # required
+model: pad                              # required: pad | event_grammar
+grammar_id: null                        # required iff model == event_grammar
+
+# ---- 5.1 Button alphabet (pad model; required) ------------------------------
+button_alphabet:
+  name: console16-12btn-v1
+  buttons:                              # 8-16 entries, bits unique
+    [ {name: A, bit: 0}, {name: B, bit: 1}, {name: X, bit: 2}, {name: Y, bit: 3},
+      {name: L, bit: 4}, {name: R, bit: 5}, {name: UP, bit: 6},
+      {name: DOWN, bit: 7}, {name: LEFT, bit: 8}, {name: RIGHT, bit: 9},
+      {name: START, bit: 10}, {name: SELECT, bit: 11} ]
+  exclusive_groups: [ [UP, DOWN], [LEFT, RIGHT] ]
+  forbidden_masks: [ { mask: [START, SELECT], clear: [SELECT] } ]
+  directions: { group: [UP, DOWN, LEFT, RIGHT], allow_diagonals: true }
+
+# ---- 5.2 Generator mix -------------------------------------------------------
+generator_mix:                          # normalized at load; absent generator = 0
+  weighted_random: 0.45
+  macro: 0.35
+  mutation: 0.20
+  policy: 0.0                           # enable in later milestones
+
+# ---- 5.3 Burst length --------------------------------------------------------
+burst_len:
+  distribution: lognormal               # lognormal | fixed | uniform
+  mean_frames: 300                      # location; overridden by length_hint
+  sigma: 0.35                           # lognormal only
+  min_frames: 16
+  max_frames: 1800
+
+# ---- 5.4 Weighted-random priors ------------------------------------------------
+weighted_random:
+  default_button: { duty: 0.04, mean_hold_frames: 6 }   # any button not listed
+  buttons:                              # per-button (π, μ) — ARCHITECTURE.md §4.2
+    A:      { duty: 0.20, mean_hold_frames: 18 }        # jump
+    B:      { duty: 0.35, mean_hold_frames: 60 }        # run/dash
+    Y:      { duty: 0.15, mean_hold_frames: 30 }
+    START:  { duty: 0.002, mean_hold_frames: 2 }
+    SELECT: { duty: 0.0,  mean_hold_frames: 1 }         # duty 0 = never pressed
+  direction:
+    priors: { NEUTRAL: 0.15, LEFT: 0.10, RIGHT: 0.55, UP: 0.08, DOWN: 0.12 }
+    mean_hold_frames: 24
+    stickiness: 0.55
+    diagonal_factor: 0.25               # P(add 2nd legal dir to a non-neutral seg)
+  start_from_history: true              # continue holds across the node boundary
+
+# ---- 5.5 Context rules (all optional) ------------------------------------------
+context_rules:
+  - when: { feature: boss_hp, op: gt, value: 0 }
+    adjust_buttons: { Y: 1.2 }                       # logit deltas on duty
+    adjust_directions: { RIGHT: 0.5, LEFT: -0.5 }
+  - when: { history: { pressed_within: { button: START, frames: 120 } } }
+    adjust_buttons: { START: -4.0 }
+refractory:                                            # sugar for the same thing
+  - { button: START, frames: 120, logit_penalty: 4.0 }
+
+# ---- 5.6 Macro generator --------------------------------------------------------
+macro:
+  packs: [ console16-movement-core ]    # pack names/ids that must be loaded
+  pad_to_length: true
+  chain_n: 1                            # macros concatenated per burst (1..4)
+
+# ---- 5.7 Mutation ----------------------------------------------------------------
+mutation:
+  donor_bias: 0.5
+  op_probs: { perturb_timing: 0.25, extend: 0.20, flip_button: 0.15, splice: 0.15,
+              truncate: 0.10, duplicate_segment: 0.10, swap_adjacent: 0.05 }
+  timing_sigma: 0.25
+  ops_binomial: { n: 3, p: 0.25 }       # n_ops = 1 + Binomial(n, p)
+
+# ---- 5.8 Policy ------------------------------------------------------------------
+policy:
+  endpoint: "http://spark-policy:7480"  # PolicyServing gRPC endpoint
+  model_id: "pad-policy"
+  temperature: 1.0
+  horizon_segments: 48
+  call_deadline_ms: 150
+  strict_reproducibility: true          # require server determinism attestation
+
+# ---- 5.9 Reproducibility ----------------------------------------------------------
+strict_reproducibility: true            # global switch (see policy generator)
