@@ -177,6 +177,22 @@ re-running the 1,000-call smoke: 0 errors, 0 illegal bursts,
 `synth_version 0.2.0` (evidence doc, rerun section). Workspace at 106 tests
 / 21 suites green.
 
+## Review round 3 (this SHA)
+
+An adversarial verification of round 2 plus a full dry-run of the
+phases-track verification procedure from a clean checkout (steps 1-5 of
+`03-verification-offer.md`: clean-clone workspace tests 106/21 green, named
+suites re-run, golden-gate fail/pass legs reproduced verbatim from the
+script header's recipe, proto byte-diffs clean, seed rule doc/code agree,
+image rebuilt from the clone with correct SHA traceability, all 8 beads
+confirmed closed — verdict: would sign off). One residual applied: a pack
+NAME may legally collide with a different pack's pack_id (the name grammar
+admits 64-char hex), and the combined name-or-id registry scan resolved
+such collisions by load order (proven by PoC). `PackRegistry::get` is now
+id-first (ids unique by construction, names unique by replacement), making
+lookup a pure function of the loaded set; regression test
+`pack_id_lookup_beats_name_collision_regardless_of_load_order`.
+
 ## Verification pointers
 
 Clean checkout at `9353272` (final SHA incl. both review rounds): `cargo test
@@ -184,5 +200,9 @@ Clean checkout at `9353272` (final SHA incl. both review rounds): `cargo test
 suites; needs the sibling `control-plane` checkout at `proto-v0.2.0`);
 golden recorder modes are `--ignored` tests; the CI golden↔version rule's
 synthetic-violation reproduction is documented in
-`ci/check-golden-version.sh`'s header; image reproducible via
-`scripts/build-image.sh` (SHAs printed at build time).
+`ci/check-golden-version.sh`'s header; image rebuildable via
+`scripts/build-image.sh` (source SHAs printed at build time). Note on the
+offer's step 4 wording: image *digests* are not bit-identical across
+rebuilds (cargo/docker nondeterminism — confirmed empirically); "reproducible
+from the recorded SHA" holds as SHA-traceable rebuildability, which is what
+the evidence records.

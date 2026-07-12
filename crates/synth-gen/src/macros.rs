@@ -594,11 +594,21 @@ impl PackRegistry {
         warnings
     }
 
-    /// Look up a pack by declared name OR pack_id.
+    /// Look up a pack by pack_id OR declared name — in that order.
+    ///
+    /// The id pass runs to completion before any name is considered: ids are
+    /// unique by construction (content hashes) and names are unique by the
+    /// replacement invariant in [`Self::insert`], but a pack NAME may legally
+    /// collide with a *different* pack's id (`[a-z0-9-]+` admits 64-char
+    /// lowercase hex). A single combined `name || id` first-match scan would
+    /// resolve such a collision by registry load order, which is not part of
+    /// the config fingerprint — id-first makes the lookup a pure function of
+    /// the loaded set.
     pub fn get(&self, name_or_id: &str) -> Option<&MacroPack> {
         self.packs
             .iter()
-            .find(|p| p.name == name_or_id || p.pack_id == name_or_id)
+            .find(|p| p.pack_id == name_or_id)
+            .or_else(|| self.packs.iter().find(|p| p.name == name_or_id))
     }
 
     /// Sorted pack ids, for fingerprinting (API.md §2.1/§7).
