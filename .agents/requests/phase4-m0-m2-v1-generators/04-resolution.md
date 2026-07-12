@@ -14,6 +14,7 @@ subagent reviews before execution; review deltas in commit `fccfdbf`).
 | M2 | `83016c2`, `eaa7ea9` | macro engine, demo pack, server wiring |
 | v1 gate | `1b374da` | Dockerfile/build script, smoke evidence, vendored harness |
 | M3 (stretch) | `ab36bb4` | mutation generator + provenance replay |
+| Post-implementation review round | `c9851c3` | dual code-review findings applied (see below); `SYNTH_VERSION` 0.1.0 → 0.2.0 |
 
 ## Beads (all closed with `-r` evidence)
 
@@ -132,9 +133,36 @@ mutant after the single forced retry; the retry uses its own stream label
   Raised here rather than absorbed (per the choreography note about doc
   drift working both ways).
 
+## Post-implementation code-review round (`c9851c3`)
+
+Two independent subagent reviews of the full `0aa6b34..HEAD` delta — a
+spec-fidelity audit against ARCHITECTURE/API/IMPLEMENTATION-PLAN and a
+correctness bug hunt. 16 of 18 findings applied, notably: two
+wire-reachable panics fixed (all-unavailable generator mix now degrades to
+weighted-random per INTEGRATION §7; `mutation.op_probs` keys validated);
+two fingerprint-integrity holes closed (single-guard state snapshot in
+ProposeBursts; cross-pack macro shadowing resolved by the fingerprinted
+`macro.packs` list order instead of unfingerprinted load order);
+multi-splice provenance replay resolves each splice's own recorded donor;
+resource bounds (`max_frames` ≤ 216000, `ops_binomial.n` ≤ 64), i128
+int-param spans, finite-float validation, denormal-duty handling, mixer
+floor-sum guard, HTTP read timeout, unconditional pack-presence
+FAILED_PRECONDITION, k=256/257 boundary tests. Provenance `rng_stream` now
+carries canonical §7.2 labels — a format change, so `SYNTH_VERSION` bumped
+to 0.2.0 with goldens regenerated (m1 burst_ids verified byte-identical).
+CI run 29195495676 on `c9851c3`: green on both arches.
+ARCHITECTURE §7.2 gained the `slot/{s}/mut/retry` row (spec gap, dated
+comment). Declined with rationale: `burst_hash` input composition differs
+from API §1's literal wording (ids are opaque, internally consistent, and
+pinned by goldens — changing would break every golden for doc literalism;
+documented in `types.rs` instead); line/column on post-parse semantic
+validation errors (structurally unavailable after deserialization — parse
+errors do carry them).
+
 ## Verification pointers
 
-Clean checkout at `ab36bb4`: `cargo test --workspace` (97 tests / 21
+Clean checkout at `c9851c3` (final SHA incl. the review round): `cargo test
+--workspace` (105 tests / 21
 suites; needs the sibling `control-plane` checkout at `proto-v0.2.0`);
 golden recorder modes are `--ignored` tests; the CI golden↔version rule's
 synthetic-violation reproduction is documented in
