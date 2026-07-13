@@ -52,18 +52,42 @@ bd close <id>         # Complete work
 
 ## Build & Test
 
-_Add your build and test commands here_
+Requires a sibling checkout of `control-plane` at tag `proto-v0.2.0`
+(the workspace path-depends on `../control-plane/crates/determinism-proto`).
 
 ```bash
-# Example:
-# npm install
-# npm test
+cargo test --workspace                                  # full suite
+cargo clippy --workspace --all-targets -- -D warnings   # lint gate (CI)
+cargo fmt --all -- --check                              # format gate (CI)
 ```
 
-## Architecture Overview
+## Where the real docs are
 
-_Add a brief overview of your project architecture_
+Architecture/API/integration docs are NOT in this repo. See
+`~/.agents/projects/determinism/docs/input-synthesizer/{ARCHITECTURE,API,INTEGRATION,IMPLEMENTATION-PLAN}.md`
+— those are the normative specs this service implements. In-repo:
+`README.md` (layout, determinism rules), `docs/proto-audit.md`.
 
-## Conventions & Patterns
+## Determinism guardrails you cannot see from tests passing
 
-_Add your project-specific conventions here_
+- **fmath-only in sampling paths.** Never call `f64::ln/exp/sin/cos/tan/
+  powf` (or other transcendentals) in `synth-core`/`synth-pad`/`synth-gen`
+  decision paths — route through `synth_core::fmath` (pinned pure-Rust
+  libm), or x86_64 and aarch64 diverge bit-for-bit. Enforced by clippy
+  `disallowed-methods` (see `clippy.toml`); test code may `#[allow]` at
+  the smallest scope when computing statistics.
+- **The golden↔version CI gate covers ALL of `testdata/`** — schema
+  fixtures under `testdata/config/` included, not only `testdata/golden/`.
+  Any testdata diff in a PR needs a `[workspace.package] version` bump in
+  the root `Cargo.toml` (`SYNTH_VERSION` tracks it).
+- **Invalid-fixture table coupling.** `crates/synth-core/tests/
+  config_acceptance.rs` enforces that every file in
+  `testdata/config/invalid/` has a matching expected-error row in its
+  table (and vice versa) — new fixtures and rows land in the same commit.
+- **Goldens hash canonical domain forms**, never prost wire bytes (proto
+  `map<>` fields encode in per-process HashMap order). See the golden test
+  files' headers.
+- **RNG stream contract**: one label, one consumer, one pass; draw order
+  within a stream is part of the format (`synth-core/src/rng.rs` header,
+  ARCHITECTURE.md §7.2). Changing any draw order = regenerate goldens +
+  version bump in the same PR.
