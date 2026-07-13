@@ -1,7 +1,7 @@
 # Resolution — Phase 4 M0–M2 v1 Generators (+M3)
 
 **Final state (read this first):** branch `phase4-v1-generators` HEAD;
-`cargo test --workspace` = 122 tests / 22 suites green; authoritative
+`cargo test --workspace` = 123 tests / 22 suites green; authoritative
 dual-arch CI evidence = the newest green run on the branch (every push
 triggers one; a documentation-only commit necessarily trails its own run
 by one — check `gh run list` for the head's conclusion). Per-round map
@@ -657,6 +657,24 @@ insertion preserves it; normal draws unaffected in all three shapes).
 Sibling sweep: kk2/cww unchanged; reference-workload is actively
 executing the corpus GO decision (new gamepad/evdev capture commits).
 
+## Review round 22 (this commit)
+
+Two closing certifications, no fixes needed. (1) **Behavior-freeze
+certificate**: every commit since round 13 (`5b3f02d`) was classified
+hunk-by-hunk — all eight (rounds 14–21) touched only documentation, test
+code, comments/doc-comments in production files, or additive lint config;
+**zero executable production changes**; all five golden fixture files
+byte-frozen across the range; and the workspace passed the newly-added
+fmath lints without a single code edit (corroborating that no drift
+existed to correct). The phases track may treat rounds 14–22 as a pure
+verification overlay on the round-13 implementation. (2) The round-21
+delta verified fully, including the trap test's fairness question settled
+by a u-granularity computation: `next_unit_f64`'s maximum value
+((2^53−1)/2^53 = 0.9999999999999999) equals the known one-ulp-short prior
+sum bit-for-bit, so the realistic rounding-gap fallback IS reachable at
+the boundary, and the test's exaggerated fixture exercises the identical
+control flow — adequate coverage, no addition needed.
+
 ## Verification pointers
 
 Owner docs (ARCHITECTURE.md, API.md, INTEGRATION.md, IMPLEMENTATION-PLAN.md)
@@ -665,7 +683,7 @@ live OUTSIDE this repository at
 reference in this document points there, not at a repo path.
 
 Clean checkout at the HEAD of branch `phase4-v1-generators`: `cargo test
---workspace` (122 tests / 22
+--workspace` (123 tests / 22
 suites; needs the sibling `control-plane` checkout at `proto-v0.2.0`);
 golden recorder modes are `--ignored` tests; the CI golden↔version rule's
 synthetic-violation reproduction is documented in
