@@ -40,7 +40,8 @@ sections are scoped to their round's SHA, not the final tree:
 | 27 | `d58a701` | 29228430256 | round-26 verified; sweep clean (d7t.1 note later corrected) |
 | 28 | `8394da6` | 29229948457 | round-27 d7t.1 error corrected; sweep quiet |
 | 29 | `045df1d` | 29231488929 | round-28 correction verified; sweep quiet |
-| 30 | this commit | (trails by one) | round-29 verified; sweep quiet |
+| 30 | `348b682` | 29233055694 | round-29 verified; sweep quiet |
+| 31 | this commit | (trails by one) | round-30 verified; sweep quiet |
 
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
@@ -779,13 +780,19 @@ sweep — now requiring command-verified facts with explicit sourcing for
 comment-prose claims — found all repos static at anchors, zero drift,
 correct formal deps for 5tk, and a stable stack.
 
-## Review round 30 (this commit)
+## Review round 30 (`348b682`)
 
 Maintenance round, zero findings. Round-29 delta verified in full
 (single-file diff, runs green, gates 123 passed / 0 failed); the sweep
 found all three sibling repos stationary at their anchors, zero proto
 drift, the fast-forward lineage clean, and the stack nominal (3
 snapstore, 1 workerd, bridge active).
+
+## Review round 31 (this commit)
+
+Maintenance round, zero findings — the fourth consecutive. Round-30
+delta verified in full; the sweep found all anchors stationary, zero
+drift, lineage clean, stack nominal.
 
 ## Verification pointers
 
