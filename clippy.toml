@@ -3,10 +3,15 @@ disallowed-types = [
   { path = "std::collections::HashSet", reason = "unordered iteration is nondeterministic; use IndexSet/BTreeSet" },
 ]
 
-# fmath-only rule (ARCHITECTURE.md §7.2 rule 3): transcendentals in sampling
-# paths must route through synth_core::fmath (pinned pure-Rust libm) or
-# x86_64/aarch64 diverge. std f64 methods are platform libm. Test-only
-# statistics code may #[allow] at the smallest scope.
+# fmath-only rule (this repo's enforcement of ARCHITECTURE.md §7.2 rule 3's
+# float discipline — rule 3 mandates cross-arch bit-stability; routing all
+# transcendentals through synth_core::fmath (pinned pure-Rust libm) is how
+# this repo achieves it). std f64 methods are platform libm. Test-only
+# statistics code may #[allow] at the smallest scope (none needed so far).
+# f64::sqrt is deliberately NOT listed: IEEE-754 mandates correctly-rounded
+# sqrt, so it is bit-stable everywhere (fmath::sqrt exists for style only).
+# f32 variants intentionally absent: no f32 math exists in decision paths;
+# add matching rows if that ever changes.
 disallowed-methods = [
   { path = "f64::ln", reason = "use synth_core::fmath::ln (platform libm diverges cross-arch)" },
   { path = "f64::exp", reason = "use synth_core::fmath::exp" },

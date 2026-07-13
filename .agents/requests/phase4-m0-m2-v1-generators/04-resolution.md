@@ -609,6 +609,35 @@ sibling movement dating any claim; one freshness nuance folded into open
 item 1: reference-workload's beads now record a 2026-07-12 operator GO
 decision on the launch.
 
+## Review round 20 (this commit)
+
+Round 19 closed out with a verification and a measurement. The
+verification confirmed every CLAUDE.md claim accurate against the code
+(including the control-plane tag naming and the empirically re-proven
+lint), with three precision items applied: AGENTS.md now points at
+CLAUDE.md instead of sitting as bare boilerplate (the round-19 leftover),
+clippy.toml's spec citation softened to "this repo's enforcement of the
+§7.2 float discipline" (rule 3 mandates the outcome, not the mechanism),
+and fmath's sqrt inconsistency resolved in the doc comment (IEEE mandates
+correctly-rounded sqrt — bit-stable everywhere, hence deliberately absent
+from the lint; the wrapper is stylistic).
+
+The measurement re-ran the onboarding dry run with a fresh agent and a
+harder task (a new mutation operator whose "probability 0.0" default
+hides a real determinism trap). Results: the round-19 fixes worked —
+"Where the real docs are" was rated the single most useful sentence, the
+gate-scope bullet was directly load-bearing — and the agent independently
+FOUND and correctly RESOLVED the trap (a zero-weight key appended last
+silently changes the categorical's rounding fallback, `entries.last()`).
+Its residual friction became this round's fixes: the categorical
+last-entry trap, the `VALID_MUTATION_OPS` allow-list location, the
+feature-acceptance-docs path, and the owner-doc change process are now in
+CLAUDE.md (with a matching pointer comment on `op_probs` itself), and the
+operator-frequency χ² test is hardened against zero-probability bins
+(expected = 0 previously produced a NaN chi2 with a misleading failure
+message; zero bins are now hard-asserted at zero draws and excluded from
+dof).
+
 ## Verification pointers
 
 Owner docs (ARCHITECTURE.md, API.md, INTEGRATION.md, IMPLEMENTATION-PLAN.md)

@@ -1,5 +1,9 @@
 # Agent Instructions
 
+> See `CLAUDE.md` for build/test commands, where the normative docs live,
+> and the determinism guardrails — that file carries the real project
+> context; this one is tracker/process boilerplate.
+
 This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
 
 ## Quick Reference

@@ -75,7 +75,8 @@ Architecture/API/integration docs are NOT in this repo. See
   decision paths — route through `synth_core::fmath` (pinned pure-Rust
   libm), or x86_64 and aarch64 diverge bit-for-bit. Enforced by clippy
   `disallowed-methods` (see `clippy.toml`); test code may `#[allow]` at
-  the smallest scope when computing statistics.
+  the smallest scope when computing statistics (none has been needed so
+  far — the whole workspace routes through fmath).
 - **The golden↔version CI gate covers ALL of `testdata/`** — schema
   fixtures under `testdata/config/` included, not only `testdata/golden/`.
   Any testdata diff in a PR needs a `[workspace.package] version` bump in
@@ -91,3 +92,20 @@ Architecture/API/integration docs are NOT in this repo. See
   within a stream is part of the format (`synth-core/src/rng.rs` header,
   ARCHITECTURE.md §7.2). Changing any draw order = regenerate goldens +
   version bump in the same PR.
+- **The categorical last-entry trap.** `weighted_random::categorical`
+  falls back to `entries.last()` when float rounding leaves the cumulative
+  sum just under 1.0. Adding a zero-weight key to any IndexMap that feeds
+  a categorical (e.g. `mutation.op_probs` defaults) is bit-neutral for
+  every normal draw (`x + 0.0 == x`) — but appending it LAST silently
+  changes that fallback. Insert new zero-weight keys BEFORE the final
+  entry.
+- **Op allow-list**: legal `mutation.op_probs` keys are the
+  `VALID_MUTATION_OPS` const in `synth-core/src/config/validation.rs`
+  (kept in lockstep with `mutation.rs`'s `apply_named_op` match).
+- **Feature acceptance criteria** live under
+  `.agents/plans/phase4-m0-m2-v1-generators/` (per-milestone accept lists
+  the golden/statistical/replay test obligations trace to).
+- **Changing the owner docs**: they are plain files at the path above (no
+  separate repo/PR process); edit in place and leave a dated HTML comment
+  at the change site — see existing `<!-- 2026-07-12: ... -->` precedents
+  throughout API.md/ARCHITECTURE.md.

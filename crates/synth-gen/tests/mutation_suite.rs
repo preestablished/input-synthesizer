@@ -247,14 +247,29 @@ fn operator_frequency_and_mean_ops_match_config() {
         "mean ops/mutant {mean_ops:.4} not within 1.75 +- 0.05"
     );
 
+    // Skip zero-probability bins: expected = 0 makes the chi2 term 0/0 =
+    // NaN, which silently fails the `chi2 < critical` assert with a
+    // confusing message. dof counts NONZERO bins - 1 accordingly. (Guards
+    // future config-selectable operators with default probability 0.0 —
+    // round-20 onboarding dry run.)
     let mut chi2 = 0.0f64;
-    for (i, name) in op_names.iter().enumerate() {
+    let mut nonzero_bins = 0u64;
+    for (idx, name) in op_names.iter().enumerate() {
         let expected_p = cfg.mutation.op_probs[*name];
+        if expected_p == 0.0 {
+            assert_eq!(
+                counts[idx], 0,
+                "op {name} has probability 0 but was drawn {} times",
+                counts[idx]
+            );
+            continue;
+        }
+        nonzero_bins += 1;
         let expected = expected_p * total_ops as f64;
-        let observed = counts[i] as f64;
+        let observed = counts[idx] as f64;
         chi2 += (observed - expected).powi(2) / expected;
     }
-    let dof = (op_names.len() - 1) as u64;
+    let dof = nonzero_bins - 1;
     let critical = chi2_critical(dof, 0.001);
     assert!(
         chi2 < critical,

@@ -3,8 +3,11 @@
 //! M0 decision (IMPLEMENTATION-PLAN risk table, float nondeterminism): every
 //! transcendental in a sampling path routes through the pure-Rust `libm`
 //! crate so x86_64 and aarch64 produce identical bits. Do NOT call
-//! `f64::ln`/`exp`/`sin`/`cos`/`sqrt` (std libm may differ per platform) in
+//! `f64::ln`/`exp`/`sin`/`cos` (std libm may differ per platform) in
 //! `synth-core`, `synth-pad`, or `synth-gen` decision paths — use these.
+//! (`f64::sqrt` is IEEE-correctly-rounded and therefore bit-stable
+//! everywhere; the [`sqrt`] wrapper exists for stylistic consistency and is
+//! deliberately absent from clippy.toml's disallowed-methods list.)
 
 pub fn ln(x: f64) -> f64 {
     libm::log(x)
