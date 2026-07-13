@@ -188,7 +188,7 @@ mutant after the single forced retry; the retry uses its own stream label
   cleanly with the orchestrator's existing check, no change needed on
   their side.
 
-## Post-implementation code-review round (`c9851c3`)
+## Review round 1 (`c9851c3`) — post-implementation code review
 
 Two independent subagent reviews of the full `0aa6b34..HEAD` delta — a
 spec-fidelity audit against ARCHITECTURE/API/IMPLEMENTATION-PLAN and a
@@ -544,7 +544,27 @@ zero inputsynth proto drift from the tag, the Phase 3 stack still
 running, kk2/cww/isj in their recorded states — and one positive update
 folded into open item 1: refwork-czi closed 2026-07-12.
 
+## Review round 17 (this commit)
+
+Two final audits. (1) **Recorder idempotency** — a property untested in
+sixteen rounds: all five `--ignored` golden recorders (rng streams, m1,
+m2, m3, contract fixtures) were re-run in a clean clone and every one
+regenerated its committed fixture **byte-for-byte** (`git status` empty
+afterward) — the record/replay twins are in sync, with no accumulated
+skew. (2) A mechanical reference-integrity check of this document: every
+prose cross-reference resolves to an existing section, every named file
+path exists, all seventeen named tests exist in the codebase, and every
+bead id carries correct repo attribution — zero dangling references. Two
+nits applied: round 1's section retitled to match the changelog table's
+numbering, and a note added in Verification pointers that the owner docs
+live outside this repository (the link-checker itself tripped on that).
+
 ## Verification pointers
+
+Owner docs (ARCHITECTURE.md, API.md, INTEGRATION.md, IMPLEMENTATION-PLAN.md)
+live OUTSIDE this repository at
+`~/.agents/projects/determinism/docs/input-synthesizer/` — every spec
+reference in this document points there, not at a repo path.
 
 Clean checkout at the HEAD of branch `phase4-v1-generators`: `cargo test
 --workspace` (122 tests / 22
