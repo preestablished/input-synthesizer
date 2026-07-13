@@ -638,6 +638,25 @@ operator-frequency χ² test is hardened against zero-probability bins
 message; zero bins are now hard-asserted at zero draws and excluded from
 dof).
 
+## Review round 21 (this commit)
+
+The round-20 trap knowledge was verified and then made executable. The
+delta verification confirmed every fc28e3a claim (including that the
+default op-prob sum lands on bit-exact 1.0, so the new zero-bin assert
+can never false-positive today), settled the `-0.0` questions
+decisively — a negative zero passes validation and is draw-neutral, but
+postcard's bit-literal f64 serialization gives sign-distinct zeros
+DIFFERENT config fingerprints, correct-by-design as document identity
+and now recorded in CLAUDE.md — and tightened the trap bullet's wording
+("bit-neutral" → "value-neutral"; the argument never needed the bit
+claim). The companion agent empirically demonstrated the categorical
+last-entry trap at the function level and pinned it as a permanent test
+(`categorical_last_entry_fallback_semantics`: fallback reachable; a
+zero-weight key appended last hijacks it; the documented before-last
+insertion preserves it; normal draws unaffected in all three shapes).
+Sibling sweep: kk2/cww unchanged; reference-workload is actively
+executing the corpus GO decision (new gamepad/evdev capture commits).
+
 ## Verification pointers
 
 Owner docs (ARCHITECTURE.md, API.md, INTEGRATION.md, IMPLEMENTATION-PLAN.md)
