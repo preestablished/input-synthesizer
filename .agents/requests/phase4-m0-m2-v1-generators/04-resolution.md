@@ -34,7 +34,8 @@ sections are scoped to their round's SHA, not the final tree:
 | 21 | `7dcbe87` | 29220991338 | categorical trap pinned as test; sign-of-zero captured |
 | 22 | `b5203c9` | 29222193998 | behavior-freeze certified; trap-test fairness settled |
 | 23 | `e753677` | 29223298498 | table/heading currency restored; freshness sweep clean |
-| 24 | this commit | (trails by one) | round-23 cells verified; session memory audited + rewritten |
+| 24 | `d851fc4` | 29224598305 | round-23 cells verified; session memory audited + rewritten |
+| 25 | this commit | (trails by one) | round-24 verified; freshness sweep quiet |
 
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
@@ -699,7 +700,7 @@ only this document). The companion freshness sweep: reference-workload's
 gamepad work does NOT touch pad_layout (bit table safe), zero proto
 drift, ff-lineage still clean, stack running, kk2/cww/5tk unchanged.
 
-## Review round 24 (this commit)
+## Review round 24 (`d851fc4`)
 
 Two audits of the reviewer's own remaining artifacts, both clean. The
 round-23 table addition was verified cell-by-cell (all eight SHAs, run
@@ -711,6 +712,20 @@ correction (a missing `crates/` prefix on the orchestrator's driver
 path), and rewritten from a 23-edit run-on into a 30-second read that
 points at this document for history instead of duplicating it. No repo
 changes beyond this record.
+
+## Review round 25 (this commit)
+
+Maintenance round, both audits clean with zero findings. The round-24
+delta and the rewritten session memory were verified in full (single-file
+diff; run 29224598305 green; all thirteen memory facts re-confirmed
+against the repos and live beads, including the corrected driver path).
+The freshness sweep found no movement anywhere: all three sibling repos
+at their anchors, zero proto drift, the fast-forward lineage clean, the
+Phase 3 stack running, and every bead state exactly as recorded. This is
+the first round in which neither agent produced a single finding of any
+severity — the audit surface remains closed and external state is
+static; only the operator merge and the sibling-repo chains (kk2→cww,
+refwork-20v→5tk) can move the project from here.
 
 ## Verification pointers
 
