@@ -33,7 +33,8 @@ sections are scoped to their round's SHA, not the final tree:
 | 20 | `fc28e3a` | 29219744688 | onboarding fixes measured; trap knowledge captured |
 | 21 | `7dcbe87` | 29220991338 | categorical trap pinned as test; sign-of-zero captured |
 | 22 | `b5203c9` | 29222193998 | behavior-freeze certified; trap-test fairness settled |
-| 23 | this commit | (trails by one) | table/heading currency restored; freshness sweep clean |
+| 23 | `e753677` | 29223298498 | table/heading currency restored; freshness sweep clean |
+| 24 | this commit | (trails by one) | round-23 cells verified; session memory audited + rewritten |
 
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
@@ -683,7 +684,7 @@ sum bit-for-bit, so the realistic rounding-gap fallback IS reachable at
 the boundary, and the test's exaggerated fixture exercises the identical
 control flow — adequate coverage, no addition needed.
 
-## Review round 23 (this commit)
+## Review round 23 (`e753677`)
 
 A currency audit caught the round-15 failure mode recurring: the
 changelog table (created in round 15 precisely because a run-id list had
@@ -697,6 +698,19 @@ production-file diffs are comments/test-module only; b5203c9 touched
 only this document). The companion freshness sweep: reference-workload's
 gamepad work does NOT touch pad_layout (bit table safe), zero proto
 drift, ff-lineage still clean, stack running, kk2/cww/5tk unchanged.
+
+## Review round 24 (this commit)
+
+Two audits of the reviewer's own remaining artifacts, both clean. The
+round-23 table addition was verified cell-by-cell (all eight SHAs, run
+ids, and paraphrases exact; headings correct; round 23's own run green).
+The session's persistent memory file — what future agent sessions load as
+ground truth — was audited claim-by-claim: thirteen of thirteen
+load-bearing facts verified against the repos and beads, with one path
+correction (a missing `crates/` prefix on the orchestrator's driver
+path), and rewritten from a 23-edit run-on into a 30-second read that
+points at this document for history instead of duplicating it. No repo
+changes beyond this record.
 
 ## Verification pointers
 
