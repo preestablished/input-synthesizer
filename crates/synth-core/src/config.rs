@@ -308,6 +308,12 @@ pub struct OpsBinomial {
 #[serde(deny_unknown_fields)]
 pub struct MutationCfg {
     pub donor_bias: f64,
+    /// Keys must come from `VALID_MUTATION_OPS`
+    /// (`config/validation.rs`), kept in lockstep with
+    /// `synth_gen::mutation`'s operator dispatch. When adding a
+    /// zero-weight default key, insert it BEFORE the final entry — the
+    /// sampling categorical's rounding fallback returns the LAST entry
+    /// (see CLAUDE.md, "categorical last-entry trap").
     pub op_probs: IndexMap<String, f64>,
     pub timing_sigma: f64,
     pub ops_binomial: OpsBinomial,
