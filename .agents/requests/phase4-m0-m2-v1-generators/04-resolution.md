@@ -44,7 +44,8 @@ sections are scoped to their round's SHA, not the final tree:
 | 31 | `7474c90` | 29234638274 | round-30 verified; sweep quiet |
 | 32 | `1685e3e` | 29236318896 | round-31 verified; sweep proto false-alarm corrected |
 | 33 | `0ab1d7c` | 29238020127 | round-32 verified (incl. proto re-check); sweep quiet |
-| 34 | this commit | (trails by one) | round-33 verified; sweep quiet |
+| 34 | `e51a7e1` | 29239984410 | round-33 verified; sweep quiet |
+| 35 | this commit | (trails by one) | round-34 verified; sweep quiet |
 
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
@@ -817,11 +818,26 @@ including an independent re-check of the proto false-alarm correction
 to paste verbatim command output for any anomalous result — reported
 correctly: all anchors stable, zero drift, lineage clean, stack nominal.
 
-## Review round 34 (this commit)
+## Review round 34 (`e51a7e1`)
 
 Maintenance round, zero findings. Round-33 delta verified in full; the
 sweep found all anchors stable, zero drift, lineage clean, stack
 nominal.
+
+## Review round 35 (this commit)
+
+Maintenance round, zero findings. Round-34 delta verified in full
+(single-file commit; row-33 CI headSha/success confirmed; round-34's
+own run 29239984410 green on all four jobs; fmt clean; 123 tests
+passed, 0 failed). The sweep found all anchors stable (7f97fca /
+0fc596b / 66f0f9f), proto diff empty, lineage clean (HEAD ==
+origin/phase4-v1-generators, merge-base 0aa6b34), stack nominal.
+External state note: refwork-5tk remains OPEN blocked on refwork-20v,
+but its launch decision is now GO (operator-approved 2026-07-12,
+gate record in reference-workload
+`.agents/plans/close-m6-entry-gates/GATE-RECORD-ASK1.md`) — the
+corpus session that unblocks open item 1 is expected soon. kk2
+unchanged (OPEN, blocks cww).
 
 ## Verification pointers
 
