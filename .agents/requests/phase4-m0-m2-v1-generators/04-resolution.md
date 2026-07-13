@@ -8,7 +8,7 @@ by one — check `gh run list` for the head's conclusion). Per-round map
 (every run success on both arches); per-round test counts in the round
 sections are scoped to their round's SHA, not the final tree:
 
-| Round | SHA | CI run | One-line outcome |
+| Round | SHA | CI run (id under https://github.com/preestablished/input-synthesizer/actions/runs/) | One-line outcome |
 |---|---|---|---|
 | — (v1 handback) | `ab36bb4` | 29181386490 | M0–M3 + v1 gate landed |
 | 1 | `c9851c3` | 29195495676 | 2 wire panics + 2 fingerprint holes fixed; 0.2.0 |
@@ -135,8 +135,10 @@ validation), fingerprint stable across all calls**. Harness vendored at
 
 **Open items (named):**
 1. **Live-context smoke rerun** — the single named open item per the
-   request; unblocked by reference-workload's corpus fulfillment
-   (`refwork-czi` / `refwork-5tk`).
+   request; unblocked by reference-workload's corpus fulfillment.
+   Freshness (2026-07-13): `refwork-czi` CLOSED 2026-07-12 (exporter +
+   context verification landed at their `2827665`); `refwork-5tk` (corpus
+   production/freeze) remains open, now behind their `refwork-20v`.
 2. The same rerun should be driven through the orchestrator's **served**
    dev loop with a consumer-side illegal-burst counter (which does not
    exist yet anywhere — see round 5). Named preconditions on their side,
@@ -522,6 +524,25 @@ rephrased, and bead shorthand glossed at first use. No code changes; the
 reader pass's verdict: "solid working handback ... the failure mode is
 purely navigational," with the proto-audit and exit-gate sections called
 exemplary.
+
+## Review round 16 (this commit)
+
+Two closure audits. (1) The Final-state changelog table verified
+cell-for-cell: all sixteen rows' SHAs exist with matching subjects, all
+fifteen CI run ids resolve to the right head SHA with success on both
+arches (including round 2's documented a9197dd exception), row order
+matches commit order, and the three row-less commits are doc-only. The
+round-15 commit's own trailing run (29213744050) confirmed green. (2) The
+plan's acceptance checklist (07-acceptance-checklist.md) walked line by
+line at HEAD: every item SATISFIED with independently verified evidence,
+except the one disclosed gap — the v1-gate illegal-burst count is
+client-side, not the hypervisor-side counter the plan demands, which is
+exactly open item 2 (kk2→cww chain), "a handback honest about its one
+shortfall rather than deficient in a hidden way" per the auditor. A
+freshness sweep across the sibling repos found no invalidating movement:
+zero inputsynth proto drift from the tag, the Phase 3 stack still
+running, kk2/cww/isj in their recorded states — and one positive update
+folded into open item 1: refwork-czi closed 2026-07-12.
 
 ## Verification pointers
 
