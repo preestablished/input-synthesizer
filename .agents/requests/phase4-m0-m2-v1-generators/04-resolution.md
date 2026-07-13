@@ -39,7 +39,8 @@ sections are scoped to their round's SHA, not the final tree:
 | 26 | `5ff7cc7` | 29226951334 | round-25 verified; sweep false-alarm corrected |
 | 27 | `d58a701` | 29228430256 | round-26 verified; sweep clean (d7t.1 note later corrected) |
 | 28 | `8394da6` | 29229948457 | round-27 d7t.1 error corrected; sweep quiet |
-| 29 | this commit | (trails by one) | round-28 correction verified; sweep quiet |
+| 29 | `045df1d` | 29231488929 | round-28 correction verified; sweep quiet |
+| 30 | this commit | (trails by one) | round-29 verified; sweep quiet |
 
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
@@ -769,7 +770,7 @@ error acknowledged in place. Everything else verified clean (round-27
 single-file diff, runs green, gates 123/22); the sweep found all repos
 at anchors, zero drift, stack stable with correct counts.
 
-## Review round 29 (this commit)
+## Review round 29 (`045df1d`)
 
 Maintenance round, zero findings. The round-28 correction verified in
 full (the d7t.1 fix independently re-confirmed against the bead graph
@@ -777,6 +778,14 @@ and its comments; single-file diff; runs green; gates 123/22). The
 sweep — now requiring command-verified facts with explicit sourcing for
 comment-prose claims — found all repos static at anchors, zero drift,
 correct formal deps for 5tk, and a stable stack.
+
+## Review round 30 (this commit)
+
+Maintenance round, zero findings. Round-29 delta verified in full
+(single-file diff, runs green, gates 123 passed / 0 failed); the sweep
+found all three sibling repos stationary at their anchors, zero proto
+drift, the fast-forward lineage clean, and the stack nominal (3
+snapstore, 1 workerd, bridge active).
 
 ## Verification pointers
 
