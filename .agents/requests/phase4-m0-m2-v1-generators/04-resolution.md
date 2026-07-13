@@ -38,7 +38,8 @@ sections are scoped to their round's SHA, not the final tree:
 | 25 | `ebb72ab` | 29225744970 | round-24 verified; freshness sweep quiet |
 | 26 | `5ff7cc7` | 29226951334 | round-25 verified; sweep false-alarm corrected |
 | 27 | `d58a701` | 29228430256 | round-26 verified; sweep clean (d7t.1 note later corrected) |
-| 28 | this commit | (trails by one) | round-27 d7t.1 error corrected; sweep quiet |
+| 28 | `8394da6` | 29229948457 | round-27 d7t.1 error corrected; sweep quiet |
+| 29 | this commit | (trails by one) | round-28 correction verified; sweep quiet |
 
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
@@ -755,7 +756,7 @@ stable, and surfaced one dependency detail folded into open item 1:
 `refwork-5tk` is additionally blocked on their `refwork-d7t.1` alongside
 `refwork-20v`.
 
-## Review round 28 (this commit)
+## Review round 28 (`8394da6`)
 
 Maintenance round with one self-correction. The delta verification
 caught a round-27 error: the "refwork-d7t.1 blocker" detail was folded
@@ -767,6 +768,15 @@ the superseded 2026-07-11 no-go comment. Open item 1 corrected with the
 error acknowledged in place. Everything else verified clean (round-27
 single-file diff, runs green, gates 123/22); the sweep found all repos
 at anchors, zero drift, stack stable with correct counts.
+
+## Review round 29 (this commit)
+
+Maintenance round, zero findings. The round-28 correction verified in
+full (the d7t.1 fix independently re-confirmed against the bead graph
+and its comments; single-file diff; runs green; gates 123/22). The
+sweep — now requiring command-verified facts with explicit sourcing for
+comment-prose claims — found all repos static at anchors, zero drift,
+correct formal deps for 5tk, and a stable stack.
 
 ## Verification pointers
 
