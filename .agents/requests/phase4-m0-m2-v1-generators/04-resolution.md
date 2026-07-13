@@ -36,7 +36,8 @@ sections are scoped to their round's SHA, not the final tree:
 | 23 | `e753677` | 29223298498 | table/heading currency restored; freshness sweep clean |
 | 24 | `d851fc4` | 29224598305 | round-23 cells verified; session memory audited + rewritten |
 | 25 | `ebb72ab` | 29225744970 | round-24 verified; freshness sweep quiet |
-| 26 | this commit | (trails by one) | round-25 verified; sweep false-alarm corrected |
+| 26 | `5ff7cc7` | 29226951334 | round-25 verified; sweep false-alarm corrected |
+| 27 | this commit | (trails by one) | round-26 verified; sweep clean with corrected counts |
 
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
@@ -149,9 +150,10 @@ validation), fingerprint stable across all calls**. Harness vendored at
    request; unblocked by reference-workload's corpus fulfillment.
    Freshness (2026-07-13): `refwork-czi` CLOSED 2026-07-12 (exporter +
    context verification landed at their `2827665`); `refwork-5tk` (corpus
-   production/freeze) remains open, now behind their `refwork-20v` — and
-   their beads record a 2026-07-12 operator GO decision on the launch
-   (previously no-go pending approval), so the chain is actively moving.
+   production/freeze) remains open, behind their `refwork-20v` AND
+   `refwork-d7t.1` (dependency detail surfaced round 27) — their beads
+   record a 2026-07-12 operator GO decision on the launch (previously
+   no-go pending approval), so the chain is actively moving.
 2. The same rerun should be driven through the orchestrator's **served**
    dev loop with a consumer-side illegal-burst counter (which does not
    exist yet anywhere — see round 5). Named preconditions on their side,
@@ -728,7 +730,7 @@ severity — the audit surface remains closed and external state is
 static; only the operator merge and the sibling-repo chains (kk2→cww,
 refwork-20v→5tk) can move the project from here.
 
-## Review round 26 (this commit)
+## Review round 26 (`5ff7cc7`)
 
 Maintenance round. The round-25 delta verified in full (single-file
 diff, run green, prose consistent, gates 123/22). The freshness sweep
@@ -738,6 +740,17 @@ offline, but direct re-verification before recording showed three
 instances plus dh-workerd and the bridge all running (the sweep agent's
 `pgrep -c` invocation miscounted). Sweep findings are re-verified
 before entering this record; that practice caught this one.
+
+## Review round 27 (this commit)
+
+Maintenance round, clean. The round-26 delta verified in full, including
+independent re-confirmation of the false-alarm account (three
+snapstore-server instances counted correctly with the fixed pgrep
+invocation; bridge active). The sweep — now carrying the corrected
+process-count guidance — found all repos at anchors, zero drift, stack
+stable, and surfaced one dependency detail folded into open item 1:
+`refwork-5tk` is additionally blocked on their `refwork-d7t.1` alongside
+`refwork-20v`.
 
 ## Verification pointers
 
