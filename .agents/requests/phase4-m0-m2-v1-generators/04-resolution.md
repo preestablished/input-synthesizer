@@ -25,7 +25,15 @@ sections are scoped to their round's SHA, not the final tree:
 | 12 | `8d88dbb` | 29210300455 | generator_mix zero-fill; §5 addendum pinned |
 | 13 | `5b3f02d` | 29211515814 | schema-wide deny_unknown_fields; spec coverage complete |
 | 14 | `7dc73d2` | 29212707663 | cross-repo config blocker raised (their `kk2`) |
-| 15 | this commit | (trails by one) | navigational fixes from artifact + reader audits |
+| 15 | `7c96957` | 29213744050 | navigational fixes from artifact + reader audits |
+| 16 | `5b931b5` | 29214780991 | closure audits clean; refwork-czi freshness folded in |
+| 17 | `60a402f` | 29215956272 | recorder idempotency verified; reference-integrity nits |
+| 18 | `387d2c1` | 29217243467 | merge preflight safe; release/flakiness runs clean |
+| 19 | `20fb957` | 29218461581 | onboarding gaps fixed (CLAUDE.md, fmath lint, README) |
+| 20 | `fc28e3a` | 29219744688 | onboarding fixes measured; trap knowledge captured |
+| 21 | `7dcbe87` | 29220991338 | categorical trap pinned as test; sign-of-zero captured |
+| 22 | `b5203c9` | 29222193998 | behavior-freeze certified; trap-test fairness settled |
+| 23 | this commit | (trails by one) | table/heading currency restored; freshness sweep clean |
 
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
@@ -510,7 +518,7 @@ bead with a comment. Open item 2 (served-loop smoke) therefore now has two
 named preconditions on their side: `kk2` then `cww`. Nothing changes in
 this repo — the schema matches its own specification.
 
-## Review round 15 (this commit)
+## Review round 15 (`7c96957`)
 
 Two closing audits: an artifact verification of round 14 (all nine `kk2`
 sites, the FakeSynth scanner mechanism, and the bring-up wiring chain
@@ -527,7 +535,7 @@ reader pass's verdict: "solid working handback ... the failure mode is
 purely navigational," with the proto-audit and exit-gate sections called
 exemplary.
 
-## Review round 16 (this commit)
+## Review round 16 (`5b931b5`)
 
 Two closure audits. (1) The Final-state changelog table verified
 cell-for-cell: all sixteen rows' SHAs exist with matching subjects, all
@@ -546,7 +554,7 @@ zero inputsynth proto drift from the tag, the Phase 3 stack still
 running, kk2/cww/isj in their recorded states — and one positive update
 folded into open item 1: refwork-czi closed 2026-07-12.
 
-## Review round 17 (this commit)
+## Review round 17 (`60a402f`)
 
 Two final audits. (1) **Recorder idempotency** — a property untested in
 sixteen rounds: all five `--ignored` golden recorders (rng streams, m1,
@@ -561,7 +569,7 @@ nits applied: round 1's section retitled to match the changelog table's
 numbering, and a note added in Verification pointers that the owner docs
 live outside this repository (the link-checker itself tripped on that).
 
-## Review round 18 (this commit)
+## Review round 18 (`387d2c1`)
 
 Two operator-facing final checks, both clean, no fixes needed. (1) **Merge
 preflight**: the exact remaining operator action — fast-forwarding
@@ -577,7 +585,7 @@ last verified four code-changing rounds earlier) — 122/22 green with
 goldens replaying byte-identically under optimized codegen — and a triple
 consecutive debug run with identical results each time (no flakiness).
 
-## Review round 19 (this commit)
+## Review round 19 (`20fb957`)
 
 A maintainer-onboarding dry run (a fresh agent planned a realistic config
 field addition end-to-end — its plan was fully correct, including
@@ -609,7 +617,7 @@ sibling movement dating any claim; one freshness nuance folded into open
 item 1: reference-workload's beads now record a 2026-07-12 operator GO
 decision on the launch.
 
-## Review round 20 (this commit)
+## Review round 20 (`fc28e3a`)
 
 Round 19 closed out with a verification and a measurement. The
 verification confirmed every CLAUDE.md claim accurate against the code
@@ -638,7 +646,7 @@ operator-frequency χ² test is hardened against zero-probability bins
 message; zero bins are now hard-asserted at zero draws and excluded from
 dof).
 
-## Review round 21 (this commit)
+## Review round 21 (`7dcbe87`)
 
 The round-20 trap knowledge was verified and then made executable. The
 delta verification confirmed every fc28e3a claim (including that the
@@ -657,7 +665,7 @@ insertion preserves it; normal draws unaffected in all three shapes).
 Sibling sweep: kk2/cww unchanged; reference-workload is actively
 executing the corpus GO decision (new gamepad/evdev capture commits).
 
-## Review round 22 (this commit)
+## Review round 22 (`b5203c9`)
 
 Two closing certifications, no fixes needed. (1) **Behavior-freeze
 certificate**: every commit since round 13 (`5b3f02d`) was classified
@@ -674,6 +682,21 @@ by a u-granularity computation: `next_unit_f64`'s maximum value
 sum bit-for-bit, so the realistic rounding-gap fallback IS reachable at
 the boundary, and the test's exaggerated fixture exercises the identical
 control flow — adequate coverage, no addition needed.
+
+## Review round 23 (this commit)
+
+A currency audit caught the round-15 failure mode recurring: the
+changelog table (created in round 15 precisely because a run-id list had
+silently gone stale) had itself gained no rows for seven rounds, and
+rounds 15–22's headings still read "(this commit)". Fixed: rows 16–22
+added with their verified SHAs and green run ids, and every settled
+round heading now carries its SHA — only the newest round may say "this
+commit". The audit's spot-checks independently re-confirmed the round-22
+freeze certificate (zero testdata commits in the range; the three
+production-file diffs are comments/test-module only; b5203c9 touched
+only this document). The companion freshness sweep: reference-workload's
+gamepad work does NOT touch pad_layout (bit table safe), zero proto
+drift, ff-lineage still clean, stack running, kk2/cww/5tk unchanged.
 
 ## Verification pointers
 
