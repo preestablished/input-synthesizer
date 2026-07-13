@@ -35,7 +35,8 @@ sections are scoped to their round's SHA, not the final tree:
 | 22 | `b5203c9` | 29222193998 | behavior-freeze certified; trap-test fairness settled |
 | 23 | `e753677` | 29223298498 | table/heading currency restored; freshness sweep clean |
 | 24 | `d851fc4` | 29224598305 | round-23 cells verified; session memory audited + rewritten |
-| 25 | this commit | (trails by one) | round-24 verified; freshness sweep quiet |
+| 25 | `ebb72ab` | 29225744970 | round-24 verified; freshness sweep quiet |
+| 26 | this commit | (trails by one) | round-25 verified; sweep false-alarm corrected |
 
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
@@ -713,7 +714,7 @@ path), and rewritten from a 23-edit run-on into a 30-second read that
 points at this document for history instead of duplicating it. No repo
 changes beyond this record.
 
-## Review round 25 (this commit)
+## Review round 25 (`ebb72ab`)
 
 Maintenance round, both audits clean with zero findings. The round-24
 delta and the rewritten session memory were verified in full (single-file
@@ -726,6 +727,17 @@ the first round in which neither agent produced a single finding of any
 severity — the audit surface remains closed and external state is
 static; only the operator merge and the sibling-repo chains (kk2→cww,
 refwork-20v→5tk) can move the project from here.
+
+## Review round 26 (this commit)
+
+Maintenance round. The round-25 delta verified in full (single-file
+diff, run green, prose consistent, gates 123/22). The freshness sweep
+found all repos at their anchors with no bead movement — and produced
+one false alarm worth recording as method: it reported snapstore-server
+offline, but direct re-verification before recording showed three
+instances plus dh-workerd and the bridge all running (the sweep agent's
+`pgrep -c` invocation miscounted). Sweep findings are re-verified
+before entering this record; that practice caught this one.
 
 ## Verification pointers
 
