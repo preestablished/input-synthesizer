@@ -43,7 +43,8 @@ sections are scoped to their round's SHA, not the final tree:
 | 30 | `348b682` | 29233055694 | round-29 verified; sweep quiet |
 | 31 | `7474c90` | 29234638274 | round-30 verified; sweep quiet |
 | 32 | `1685e3e` | 29236318896 | round-31 verified; sweep proto false-alarm corrected |
-| 33 | this commit | (trails by one) | round-32 verified (incl. proto re-check); sweep quiet |
+| 33 | `0ab1d7c` | 29238020127 | round-32 verified (incl. proto re-check); sweep quiet |
+| 34 | this commit | (trails by one) | round-33 verified; sweep quiet |
 
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
@@ -808,13 +809,19 @@ caught the round-26 pgrep miscount. Everything else static: anchors
 stationary, lineage clean, stack nominal (3 snapstore, 1 workerd,
 bridge active).
 
-## Review round 33 (this commit)
+## Review round 33 (`0ab1d7c`)
 
 Maintenance round, zero findings. The round-32 delta verified in full,
 including an independent re-check of the proto false-alarm correction
 (diff empty, file byte-identical to the tag). The sweep — now required
 to paste verbatim command output for any anomalous result — reported
 correctly: all anchors stable, zero drift, lineage clean, stack nominal.
+
+## Review round 34 (this commit)
+
+Maintenance round, zero findings. Round-33 delta verified in full; the
+sweep found all anchors stable, zero drift, lineage clean, stack
+nominal.
 
 ## Verification pointers
 
