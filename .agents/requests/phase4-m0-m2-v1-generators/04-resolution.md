@@ -559,6 +559,22 @@ nits applied: round 1's section retitled to match the changelog table's
 numbering, and a note added in Verification pointers that the owner docs
 live outside this repository (the link-checker itself tripped on that).
 
+## Review round 18 (this commit)
+
+Two operator-facing final checks, both clean, no fixes needed. (1) **Merge
+preflight**: the exact remaining operator action — fast-forwarding
+`origin/main` to this branch — was simulated in a scratch clone: pure
+linear history confirmed (`merge-base == origin/main`), `--ff-only` merges
+cleanly (143 files, no conflicts), post-merge gates green (122/22, clippy,
+fmt), and the golden-gate script's documented post-merge no-op ("no range
+to check", exit 0) confirmed empirically. No committed file depends on the
+branch name surviving deletion (the four references are all in this
+historical document). **Verdict: safe to fast-forward.** (2) **Optimized
+and repeated execution**: the full suite under `--release` (opt-level 3,
+last verified four code-changing rounds earlier) — 122/22 green with
+goldens replaying byte-identically under optimized codegen — and a triple
+consecutive debug run with identical results each time (no flakiness).
+
 ## Verification pointers
 
 Owner docs (ARCHITECTURE.md, API.md, INTEGRATION.md, IMPLEMENTATION-PLAN.md)
