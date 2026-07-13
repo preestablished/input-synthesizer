@@ -37,7 +37,8 @@ sections are scoped to their round's SHA, not the final tree:
 | 24 | `d851fc4` | 29224598305 | round-23 cells verified; session memory audited + rewritten |
 | 25 | `ebb72ab` | 29225744970 | round-24 verified; freshness sweep quiet |
 | 26 | `5ff7cc7` | 29226951334 | round-25 verified; sweep false-alarm corrected |
-| 27 | this commit | (trails by one) | round-26 verified; sweep clean with corrected counts |
+| 27 | `d58a701` | 29228430256 | round-26 verified; sweep clean (d7t.1 note later corrected) |
+| 28 | this commit | (trails by one) | round-27 d7t.1 error corrected; sweep quiet |
 
 Filed 2026-07-12 by the executing agent. Plan:
 `.agents/plans/phase4-m0-m2-v1-generators/` (reviewed by two independent
@@ -150,10 +151,12 @@ validation), fingerprint stable across all calls**. Harness vendored at
    request; unblocked by reference-workload's corpus fulfillment.
    Freshness (2026-07-13): `refwork-czi` CLOSED 2026-07-12 (exporter +
    context verification landed at their `2827665`); `refwork-5tk` (corpus
-   production/freeze) remains open, behind their `refwork-20v` AND
-   `refwork-d7t.1` (dependency detail surfaced round 27) — their beads
-   record a 2026-07-12 operator GO decision on the launch (previously
-   no-go pending approval), so the chain is actively moving.
+   production/freeze) remains open with formal dependencies `refwork-20v`
+   (open) and `refwork-czi` (closed) — their beads record a 2026-07-12
+   operator GO decision on the launch (previously no-go), so the chain is
+   actively moving. (Round 27 briefly recorded `refwork-d7t.1` as a
+   blocker; round 28 corrected it — that id appears only in the
+   superseded 2026-07-11 no-go comment, not the dependency graph.)
 2. The same rerun should be driven through the orchestrator's **served**
    dev loop with a consumer-side illegal-burst counter (which does not
    exist yet anywhere — see round 5). Named preconditions on their side,
@@ -741,7 +744,7 @@ instances plus dh-workerd and the bridge all running (the sweep agent's
 `pgrep -c` invocation miscounted). Sweep findings are re-verified
 before entering this record; that practice caught this one.
 
-## Review round 27 (this commit)
+## Review round 27 (`d58a701`)
 
 Maintenance round, clean. The round-26 delta verified in full, including
 independent re-confirmation of the false-alarm account (three
@@ -751,6 +754,19 @@ process-count guidance — found all repos at anchors, zero drift, stack
 stable, and surfaced one dependency detail folded into open item 1:
 `refwork-5tk` is additionally blocked on their `refwork-d7t.1` alongside
 `refwork-20v`.
+
+## Review round 28 (this commit)
+
+Maintenance round with one self-correction. The delta verification
+caught a round-27 error: the "refwork-d7t.1 blocker" detail was folded
+into open item 1 from sweep prose WITHOUT re-verifying against the bead
+dependency graph — violating the round-26 rule this record itself
+established. `bd show 5tk` confirms formal dependencies are
+`refwork-20v` (open) + `refwork-czi` (closed); `d7t.1` appears only in
+the superseded 2026-07-11 no-go comment. Open item 1 corrected with the
+error acknowledged in place. Everything else verified clean (round-27
+single-file diff, runs green, gates 123/22); the sweep found all repos
+at anchors, zero drift, stack stable with correct counts.
 
 ## Verification pointers
 
