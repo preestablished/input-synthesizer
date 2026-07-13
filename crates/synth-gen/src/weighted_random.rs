@@ -476,6 +476,62 @@ mod tests {
     use super::*;
     use synth_core::rng::{fanout_root, stream};
 
+    /// Executable form of the CLAUDE.md "categorical last-entry trap"
+    /// guardrail: `categorical`'s cumulative scan falls back to
+    /// `entries.last()` whenever `u` lands at or past the cumulative
+    /// weight sum (the float-rounding guard) — so *appending* a
+    /// zero-weight key changes that fallback (the trap), while
+    /// *inserting* it before the final entry does not (the documented
+    /// mitigation).
+    #[test]
+    fn categorical_last_entry_fallback_semantics() {
+        let base: Vec<(String, f64)> = vec![
+            ("alpha".to_string(), 0.1),
+            ("beta".to_string(), 0.2),
+            ("gamma".to_string(), 0.3),
+        ];
+        let sum: f64 = base.iter().map(|(_, w)| w).sum();
+        assert!(sum < 1.0, "fixture weights must sum under 1.0, got {sum}");
+
+        // u below the sum: an ordinary in-range draw, same answer
+        // regardless of where (or whether) a zero-weight key sits.
+        let u_below = 0.05;
+        assert!(u_below < sum);
+
+        // u above the sum (but < 1.0): only reachable via the fallback.
+        let u_above = 0.8;
+        assert!(u_above > sum && u_above < 1.0);
+
+        // (a) No zero-weight key: fallback fires, returns the true last
+        // entry — proves the fallback path is reachable at all.
+        let no_zero = base.clone();
+        assert_eq!(categorical(&no_zero, u_above), "gamma");
+
+        // (b) THE TRAP: append a zero-weight key at the end. `0.0` is
+        // additively neutral (acc unchanged), so `u_above` still exceeds
+        // every cumulative sum and the loop still falls through — but
+        // `entries.last()` is now the zero-weight key instead of "gamma".
+        let mut appended_last = base.clone();
+        appended_last.push(("zeta".to_string(), 0.0));
+        assert_eq!(categorical(&appended_last, u_above), "zeta");
+
+        // (c) THE MITIGATION: insert the same zero-weight key before the
+        // final entry instead of after it. The fallback still fires (same
+        // u_above, same reachable-fallback reasoning as (a)), but
+        // `entries.last()` is once again "gamma" — inserting before the
+        // final entry keeps the fallback semantics bit-neutral.
+        let mut inserted_before_last = base.clone();
+        inserted_before_last.insert(2, ("zeta".to_string(), 0.0));
+        assert_eq!(categorical(&inserted_before_last, u_above), "gamma");
+
+        // Normal-path neutrality: for a u below the sum, all three
+        // configurations agree (the zero-weight key never changes a
+        // draw that lands inside a real entry's range).
+        assert_eq!(categorical(&no_zero, u_below), "alpha");
+        assert_eq!(categorical(&appended_last, u_below), "alpha");
+        assert_eq!(categorical(&inserted_before_last, u_below), "alpha");
+    }
+
     /// Fix #10: a subnormal `duty` (smallest positive `f64`) underflows `a`
     /// to exactly 0.0; `button_track` must treat that as "never pressed"
     /// (empty intervals, no draws consumed) rather than panicking on

@@ -95,10 +95,16 @@ Architecture/API/integration docs are NOT in this repo. See
 - **The categorical last-entry trap.** `weighted_random::categorical`
   falls back to `entries.last()` when float rounding leaves the cumulative
   sum just under 1.0. Adding a zero-weight key to any IndexMap that feeds
-  a categorical (e.g. `mutation.op_probs` defaults) is bit-neutral for
-  every normal draw (`x + 0.0 == x`) — but appending it LAST silently
-  changes that fallback. Insert new zero-weight keys BEFORE the final
-  entry.
+  a categorical (e.g. `mutation.op_probs` defaults) is value-neutral for
+  every normal draw — but appending it LAST silently changes that
+  fallback. Insert new zero-weight keys BEFORE the final entry. Pinned by
+  the `categorical_last_entry_fallback_semantics` test.
+- **Sign-of-zero and the fingerprint.** `-0.0` passes validation (it is
+  not `< 0.0`) and behaves identically to `0.0` in every draw — but
+  `config_fingerprint` postcard-serializes f64 bit-literally, so two
+  configs differing only in a zero's sign get DIFFERENT fingerprints.
+  That is by design (fingerprint = document identity, like
+  whitespace-distinct pack_ids), just don't expect semantic dedup.
 - **Op allow-list**: legal `mutation.op_probs` keys are the
   `VALID_MUTATION_OPS` const in `synth-core/src/config/validation.rs`
   (kept in lockstep with `mutation.rs`'s `apply_named_op` match).
