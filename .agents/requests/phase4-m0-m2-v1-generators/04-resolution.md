@@ -138,7 +138,9 @@ validation), fingerprint stable across all calls**. Harness vendored at
    request; unblocked by reference-workload's corpus fulfillment.
    Freshness (2026-07-13): `refwork-czi` CLOSED 2026-07-12 (exporter +
    context verification landed at their `2827665`); `refwork-5tk` (corpus
-   production/freeze) remains open, now behind their `refwork-20v`.
+   production/freeze) remains open, now behind their `refwork-20v` — and
+   their beads record a 2026-07-12 operator GO decision on the launch
+   (previously no-go pending approval), so the chain is actively moving.
 2. The same rerun should be driven through the orchestrator's **served**
    dev loop with a consumer-side illegal-burst counter (which does not
    exist yet anywhere — see round 5). Named preconditions on their side,
@@ -574,6 +576,38 @@ and repeated execution**: the full suite under `--release` (opt-level 3,
 last verified four code-changing rounds earlier) — 122/22 green with
 goldens replaying byte-identically under optimized codegen — and a triple
 consecutive debug run with identical results each time (no flakiness).
+
+## Review round 19 (this commit)
+
+A maintainer-onboarding dry run (a fresh agent planned a realistic config
+field addition end-to-end — its plan was fully correct, including
+correctly rejecting the GeneratorMix custom-deserialize precedent as
+inapplicable) surfaced three onboarding gaps, all fixed:
+
+1. **CLAUDE.md was placeholder boilerplate** ("worse than absent" — empty
+   template sections imply content was considered and skipped). Now
+   carries the proven-necessary content: build/test commands with the
+   sibling control-plane requirement, the owner-docs location (the dry
+   run's single longest search), and the determinism guardrails invisible
+   to a passing test suite (fmath-only, the gate covering all of
+   testdata/, the invalid-fixture table coupling, canonical-form goldens,
+   the stream contract).
+2. **The fmath-only rule had no lint teeth** — a `f64::exp` in a sampling
+   path would compile, pass clippy, and only surface as a cross-arch
+   golden mismatch. `clippy.toml` now carries `disallowed-methods` for
+   the transcendental f64 methods (proven to fire on a synthetic
+   violation, same discipline as the M0 HashMap deny); the untouched
+   workspace passes clean, confirming the convention had in fact held
+   everywhere.
+3. **README's "Golden ↔ version rule" heading had lost its body** (a
+   round-7 insertion landed between heading and paragraph); reunited, plus
+   an explicit note that the gate covers all of `testdata/`, not only
+   `testdata/golden/` (a naming trap the dry run flagged).
+
+The companion sweep verified round 18's record-only commit and found no
+sibling movement dating any claim; one freshness nuance folded into open
+item 1: reference-workload's beads now record a 2026-07-12 operator GO
+decision on the launch.
 
 ## Verification pointers
 

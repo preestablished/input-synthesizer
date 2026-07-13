@@ -65,6 +65,17 @@ before any decision-path use.
 
 ## Golden ↔ version rule
 
+Any change under `testdata/` (golden fixtures — RNG-stream vectors, config
+goldens, etc.) must be accompanied by a bump of the workspace version (the
+`version` key under `[workspace.package]` in the root `Cargo.toml`; every
+crate inherits it via `version.workspace = true`, and `SYNTH_VERSION` tracks
+that same key). CI enforces this on pull requests via
+`ci/check-golden-version.sh` — see that script's header comment for the
+one-liner to reproduce a synthetic violation locally, and for the documented
+boundary (direct pushes to `main` and rebased stacks skip the gate). Note the
+gate covers ALL of `testdata/` — schema fixtures under `testdata/config/`
+included — not only `testdata/golden/`.
+
 ## Operational notes
 
 Loaded documents (experiment configs, macro packs) accumulate for the process
@@ -74,12 +85,3 @@ a dashboard concern, not a cap: watch `synth_experiments_loaded` and
 `synth_macro_packs_loaded` for a runaway bring-up loop. Per-request budgets
 (k ≤ 256, `k x max_frames` ≤ 600k frames, ≤ 64 sibling bursts, ≤ 100k context
 segments) bound what any single call can cost.
-
-Any change under `testdata/` (golden fixtures — RNG-stream vectors, config
-goldens, etc.) must be accompanied by a bump of the workspace version (the
-`version` key under `[workspace.package]` in the root `Cargo.toml`; every
-crate inherits it via `version.workspace = true`, and `SYNTH_VERSION` tracks
-that same key). CI enforces this on pull requests via
-`ci/check-golden-version.sh` — see that script's header comment for the
-one-liner to reproduce a synthetic violation locally, and for the documented
-boundary (direct pushes to `main` and rebased stacks skip the gate).

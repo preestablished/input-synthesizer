@@ -2,3 +2,18 @@ disallowed-types = [
   { path = "std::collections::HashMap", reason = "unordered iteration is nondeterministic; use IndexMap/BTreeMap (ARCHITECTURE.md §7.2 rule 4)" },
   { path = "std::collections::HashSet", reason = "unordered iteration is nondeterministic; use IndexSet/BTreeSet" },
 ]
+
+# fmath-only rule (ARCHITECTURE.md §7.2 rule 3): transcendentals in sampling
+# paths must route through synth_core::fmath (pinned pure-Rust libm) or
+# x86_64/aarch64 diverge. std f64 methods are platform libm. Test-only
+# statistics code may #[allow] at the smallest scope.
+disallowed-methods = [
+  { path = "f64::ln", reason = "use synth_core::fmath::ln (platform libm diverges cross-arch)" },
+  { path = "f64::exp", reason = "use synth_core::fmath::exp" },
+  { path = "f64::sin", reason = "use synth_core::fmath::sin" },
+  { path = "f64::cos", reason = "use synth_core::fmath::cos" },
+  { path = "f64::tan", reason = "use synth_core::fmath (no tan wrapper yet; add one if needed)" },
+  { path = "f64::powf", reason = "use synth_core::fmath (no powf wrapper yet; add one if needed)" },
+  { path = "f64::log2", reason = "use integer ilog2 or synth_core::fmath" },
+  { path = "f64::log10", reason = "use synth_core::fmath" },
+]
