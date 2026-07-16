@@ -412,3 +412,29 @@ fn unknown_keys_are_rejected_schema_wide() {
     let err = deep_merge(&cfg, b"burst_len: { mean_frame: 100 }").expect_err("override typo");
     assert!(err.to_string().contains("unknown field"), "{err}");
 }
+
+// ---- fingerprint golden: pins the canonical-postcard encoding ----
+
+/// Recorded-once golden for `config::fingerprint` (ARCHITECTURE.md §7.5).
+/// The behavioral tests elsewhere (stability, 32-byte length, pack-set
+/// sensitivity) would all still pass through a silent encoding drift — a
+/// serde field reorder on `ExperimentConfig`, a postcard version change —
+/// because they only compare the function to itself. This literal catches
+/// exactly that. The version argument is a fixed string (NOT
+/// `SYNTH_VERSION`) so workspace version bumps don't churn it; if this
+/// fails without an intentional fingerprint-semantics change, you broke
+/// document identity for every stored fingerprint.
+#[test]
+fn fingerprint_golden() {
+    let cfg = load_valid("demo-full.yaml");
+    let fp = synth_core::config::fingerprint(
+        &cfg,
+        &["pack-bbb".to_owned(), "pack-aaa".to_owned()],
+        "fingerprint-golden-test",
+    );
+    let hex: String = fp.iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(
+        hex,
+        "3b6c112f9fcdfd2b6408100e07809a8fe852d9deb8184186206a148af37f7ac2"
+    );
+}

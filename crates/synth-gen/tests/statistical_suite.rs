@@ -642,3 +642,58 @@ fn base_corpus_is_context_free() {
     assert!(ctx.ram_features.is_empty());
     assert!(ctx.recent_inputs.is_none());
 }
+
+/// (h) History continuation (ARCHITECTURE.md §4.2 `start_from_history`):
+/// when `recent_inputs` ends mid-hold on RIGHT, every generated burst's
+/// first segment must continue holding RIGHT. The behavior is byte-pinned
+/// by the full-context m1 goldens, but a golden diff can't distinguish "the
+/// continuation semantics broke" from any legitimate re-record — this
+/// asserts the semantic property directly. Deterministic: continuation is
+/// unconditional (the initial direction/button state is *set* from the
+/// history's last frame, not sampled), so it holds for every slot.
+#[test]
+fn history_continuation_holds_across_boundary() {
+    let cfg = stats_cfg();
+    // Ends with RIGHT (bit 9) held for 20 frames — mid-hold at the boundary.
+    let ctx = common::ctx_full("stats-node-history");
+    let right = 1u16 << common::bit(cfg, "RIGHT");
+
+    let (results, degraded) = propose(cfg, &ctx, 64, LENGTH_HINT, BASE_SEED, None);
+    assert!(degraded.is_empty());
+    for (slot, r) in results.iter().enumerate() {
+        let Burst::Pad(pad) = &r.burst else {
+            unreachable!("M1 scope: pad model only")
+        };
+        let first = pad.segments.first().expect("legalized burst is non-empty");
+        assert_ne!(
+            first.buttons & right,
+            0,
+            "slot {slot}: first segment {:#06x} must continue the held RIGHT",
+            first.buttons
+        );
+    }
+
+    // Negative control: with `start_from_history: false` the initial
+    // direction is sampled from the stationary priors instead (RIGHT prior
+    // 0.55), so 64 slots all starting on RIGHT would be a ~0.55^64 ≈ 2e-17
+    // coincidence — if this trips, continuation is leaking past the flag.
+    let no_continuation = {
+        let merged =
+            synth_core::config::deep_merge(cfg, b"weighted_random: { start_from_history: false }")
+                .expect("deep_merge");
+        synth_core::config::validate(&merged).expect("valid");
+        merged
+    };
+    let (results, degraded) = propose(&no_continuation, &ctx, 64, LENGTH_HINT, BASE_SEED, None);
+    assert!(degraded.is_empty());
+    let all_start_right = results.iter().all(|r| {
+        let Burst::Pad(pad) = &r.burst else {
+            unreachable!("M1 scope: pad model only")
+        };
+        pad.segments.first().is_some_and(|s| s.buttons & right != 0)
+    });
+    assert!(
+        !all_start_right,
+        "start_from_history: false must not force continuation"
+    );
+}

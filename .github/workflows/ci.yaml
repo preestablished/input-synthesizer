@@ -35,11 +35,38 @@ jobs:
         working-directory: repo
       - run: cargo test --workspace
         working-directory: repo
-      # Golden/version gate: PR-only heuristic (see script header for the
-      # documented boundary on direct pushes / rebased stacks).
-      - if: github.event_name == 'pull_request'
-        run: ci/check-golden-version.sh
-        working-directory: repo
+  golden-version-gate:
+    # Direct commits to main at green package boundaries are house practice
+    # here, so this gate must fire on push as well as pull_request — a
+    # PR-only gate would be vacuous (plan 02, ground rules).
+    name: golden-version-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The shallow default cannot resolve github.event.before or
+          # git show $BASE:Cargo.toml.
+          fetch-depth: 0
+      - name: check golden/version coupling
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE="$PR_BASE_SHA"
+          else
+            BASE="$PUSH_BEFORE_SHA"
+          fi
+          # All-zeros (new branch) or unknown-to-this-clone (force-push)
+          # base SHAs fall back to the merge-base with the default branch.
+          if [ -z "$BASE" ] \
+            || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE="$(git merge-base "origin/$DEFAULT_BRANCH" HEAD)"
+          fi
+          GOLDEN_GATE_BASE="$BASE" ci/check-golden-version.sh
   bench:
     name: bench (${{ matrix.arch }})
     # Stretch/M1 bench harness; keep CI green while it lands incrementally.

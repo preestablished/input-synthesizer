@@ -37,6 +37,30 @@ CI (`.github/workflows/ci.yaml`) runs the same steps on both `x86_64`
 proto round-trip goldens under `testdata/` for what the cross-arch matrix is
 there to catch.
 
+## Running the service
+
+```sh
+cargo run -p synth-server                 # local dev server
+scripts/build-image.sh [--multi-arch]     # container image (stages the
+                                          # control-plane sibling at
+                                          # proto-v0.2.0 — see Dockerfile)
+scripts/smoke-harness/                    # end-to-end smoke: bring-up +
+                                          # Health + LoadMacroPack + N
+                                          # ProposeBursts calls, e.g.
+cargo run --manifest-path scripts/smoke-harness/Cargo.toml -- \
+  http://127.0.0.1:7430 1000 32           # [endpoint] [calls] [k]
+```
+
+Port map:
+
+| Port | Surface |
+|---|---|
+| 7430 | gRPC — `determinism.inputsynth.v1.InputSynthesizer` |
+| 7431 | HTTP sidecar — `GET /healthz`, `GET /metrics` (Prometheus) |
+
+Smoke evidence for the shipped v1 lives in `docs/evidence/`
+(`v1-smoke-2026-07-12.md` + transcripts).
+
 ## Determinism rules
 
 This service's core contract is bit-identical output for a given seed, on

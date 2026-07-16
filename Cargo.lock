@@ -1432,6 +1432,7 @@ name = "synth-proto"
 version = "0.2.0"
 dependencies = [
  "determinism-proto",
+ "prost",
 ]
 
 [[package]]

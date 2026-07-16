@@ -452,6 +452,12 @@ pub fn deep_merge(
 /// `config_fingerprint = blake3(canonical-postcard(effective config) ‖
 /// sorted pack_ids ‖ synth_version)` (ARCHITECTURE.md §7.5). `pack_ids` must
 /// arrive sorted by the caller-visible convention (we sort here defensively).
+///
+/// Postcard encodes struct fields in declaration order, so **reordering
+/// (or adding/removing) fields on `ExperimentConfig` or anything it
+/// contains changes every fingerprint** — that's a document-identity break
+/// on par with a draw-order change: version bump + golden regeneration.
+/// Pinned by `fingerprint_golden` in tests/config_acceptance.rs.
 pub fn fingerprint(cfg: &ExperimentConfig, pack_ids: &[String], synth_version: &str) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
     let encoded = postcard::to_allocvec(cfg).expect("postcard encoding of config cannot fail");

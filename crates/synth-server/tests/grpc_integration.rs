@@ -1208,3 +1208,53 @@ async fn non_finite_sibling_score_delta_is_rejected() {
 
     server.shutdown().await;
 }
+
+/// The `synth_generator_unavailable_total` counter must actually move when
+/// a generator's weight is reallocated — the degradation *behavior* is
+/// pinned by `mutation_only_mix_without_parent_falls_back_to_weighted_random`;
+/// this pins the metric wiring beside it.
+#[tokio::test]
+async fn generator_unavailable_metric_increments_on_degradation() {
+    let service = Arc::new(SynthService::new());
+    let server = TestServer::start_with(Arc::clone(&service)).await;
+    let mut client = server.client().await;
+
+    client
+        .load_macro_pack(load_request(mutation_mix_config_bytes(
+            "exp-mutation-metric",
+        )))
+        .await
+        .expect("load mutation-mix config");
+
+    let before = service
+        .metrics
+        .generator_unavailable_total
+        .with_label_values(&["mutation", "no_parent_burst"])
+        .get();
+    assert_eq!(before, 0);
+
+    let resp = client
+        .propose_bursts(propose_request("exp-mutation-metric", 8, "n", 1))
+        .await
+        .expect("propose succeeds via fallback")
+        .into_inner();
+    assert!(
+        resp.degraded.iter().any(|d| d.reason == "no_parent_burst"),
+        "precondition: request must degrade"
+    );
+
+    let after = service
+        .metrics
+        .generator_unavailable_total
+        .with_label_values(&["mutation", "no_parent_burst"])
+        .get();
+    assert_eq!(after, 1, "one degraded generator, one increment");
+
+    // The labeled family must now also appear on the exposition surface.
+    assert!(service
+        .metrics
+        .encode()
+        .contains("synth_generator_unavailable_total"));
+
+    server.shutdown().await;
+}

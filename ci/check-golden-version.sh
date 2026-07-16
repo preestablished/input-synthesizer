@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 # ci/check-golden-version.sh
 #
-# Golden/version gate: if this PR touches testdata/ (golden fixtures) it
+# Golden/version gate: if a change touches testdata/ (golden fixtures) it
 # must also bump the workspace version (the single `version = ...` line
 # under [workspace.package] in the root Cargo.toml — all crates inherit it
 # via `version.workspace = true`, and SYNTH_VERSION tracks it). This keeps
 # golden vectors traceable to a specific published version.
 #
-# Intended for PR CI only. It diffs HEAD against the merge-base with
-# origin/main; on a direct push to main (or a rebased stack where
-# merge-base == HEAD) there is no range to check, so the gate is a no-op.
-# That is an accepted boundary of this heuristic, not a bug: direct pushes
-# to main and rebased stacks skip this gate.
+# Runs on both PR and push CI (direct commits to main at green package
+# boundaries are house practice here, so a PR-only gate would be vacuous).
+# The base of the diff range is chosen as follows:
+#   - If GOLDEN_GATE_BASE is set (CI passes the PR base SHA on
+#     pull_request events and the push's parent, github.event.before, on
+#     push events), diff HEAD against exactly that commit.
+#   - Otherwise (local runs, or CI's fallback when the event SHA is
+#     all-zeros/unknown, e.g. a brand-new branch or a force-push), diff
+#     against the merge-base with origin/main. When that merge-base IS
+#     HEAD there is no range to check and the gate is a no-op — the
+#     accepted boundary of the fallback heuristic, not a bug.
 #
 # Reproduce a synthetic violation locally:
 #   1. git checkout -b scratch-golden-check
@@ -35,12 +41,17 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-# Best-effort: make sure we actually have origin/main reachable. CI
-# checkouts can be shallow, so try to deepen before falling back to a
-# plain fetch.
-git fetch --deepen=50 origin main >/dev/null 2>&1 || git fetch origin main >/dev/null 2>&1 || true
+if [ -n "${GOLDEN_GATE_BASE:-}" ]; then
+  # A bad explicit base must fail loudly, never degrade into the no-op path.
+  BASE="$(git rev-parse --verify "${GOLDEN_GATE_BASE}^{commit}")"
+else
+  # Best-effort: make sure we actually have origin/main reachable. CI
+  # checkouts can be shallow, so try to deepen before falling back to a
+  # plain fetch.
+  git fetch --deepen=50 origin main >/dev/null 2>&1 || git fetch origin main >/dev/null 2>&1 || true
 
-BASE="$(git merge-base HEAD origin/main 2>/dev/null || true)"
+  BASE="$(git merge-base HEAD origin/main 2>/dev/null || true)"
+fi
 HEAD_SHA="$(git rev-parse HEAD)"
 
 if [ -z "$BASE" ] || [ "$BASE" = "$HEAD_SHA" ]; then

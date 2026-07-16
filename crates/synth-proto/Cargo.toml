@@ -6,3 +6,6 @@ license.workspace = true
 
 [dependencies]
 determinism-proto = { workspace = true, features = ["inputsynth"] }
+
+[dev-dependencies]
+prost = { workspace = true }
